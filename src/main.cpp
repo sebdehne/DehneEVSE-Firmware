@@ -1,11 +1,11 @@
 #include <Arduino.h>
 #include <ArduinoOTA.h>
 #include <WiFiNINA.h>
-#include <Arduino_CRC32.h>
+#include <CRC32.h>
 
 #include "config.h"
 
-const u_int8_t VERSION = 1;
+const u_int8_t VERSION = 4;
 
 const char MY_SSID[] = SECRET_SSID;
 const char MY_PASS[] = SECRET_PASS;
@@ -60,6 +60,8 @@ void loop()
 
       // send CLientId
       client.write(MY_CLIENT_ID);
+      // send Firmware version
+      client.write(VERSION);
     }
     else
     {
@@ -98,14 +100,76 @@ void loop()
   Serial.println(msgLen);
 #endif
 
-  if (requestType == 1)
+  if (requestType == REQUEST_TYPE_PING)
   {
     Serial.println("Responding to PING");
     // write pong response
-    client.write(1); // responseType: pong
-    intToByteArray(1, buf);
-    client.write(buf, 4); // msgLen: 1
-    client.write(VERSION);
+
+    // responseType: pong
+    client.write(RESPONSE_TYPE_PONG);
+    // msgLen: 0
+    intToByteArray(0, buf);
+    client.write(buf, 4);
+  }
+
+  else if (requestType == REQUEST_TYPE_FIRMWARE)
+  {
+    const uint32_t firmwareSize = msgLen - 4;
+
+    // read CRC32
+    if (!client.readBytes(buf, 4))
+    {
+      client.stop();
+      return;
+    }
+    u_int32_t crc32 = toInt(buf);
+
+    // write content to flash:
+    uint32_t remaining = firmwareSize;
+    InternalStorage.open(firmwareSize);
+    while (remaining > 0)
+    {
+      if (!client.readBytes(&b, 1)) // reading a byte with timeout
+        break;
+      InternalStorage.write(b);
+      remaining--;
+    }
+    InternalStorage.close();
+
+    if (remaining > 0)
+    {
+      Serial.print("Timeout downloading update file at ");
+      Serial.print(remaining);
+      Serial.println(" bytes. Can't continue with update.");
+      client.stop();
+      return;
+    }
+
+    // calc crc32
+    CRC32 crc;
+    uint8_t *addr = (uint8_t *)InternalStorage.STORAGE_START_ADDRESS;
+    for (size_t i = 0; i < firmwareSize; i++)
+    {
+      crc.update(*addr);
+      addr++;
+    }
+    uint32_t firmwareChecksum = crc.finalize();
+
+    if (firmwareChecksum != crc32)
+    {
+      Serial.print("Received ");
+      Serial.print(firmwareSize);
+      Serial.print(" bytes, but received CRC32=");
+      Serial.print(crc32);
+      Serial.print(" doesnt match calculated CRC32=");
+      Serial.println(firmwareChecksum);
+    }
+    else
+    {
+      Serial.println("Rebooting to new firmware now");
+      Serial.flush();
+      InternalStorage.apply();
+    }
   }
 }
 
