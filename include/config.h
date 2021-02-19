@@ -1,8 +1,6 @@
-// Insert your WiFi secrets here:
-#define SECRET_SSID "" // Your network SSID (name)    
-#define SECRET_PASS "" // Your network password
 #define CLIENT_ID 1
 #define SERVER_IP "192.168.1.1"
+#define SERVER_PORT 9091
 //#define DEBUG
 
 void connectToWifi();

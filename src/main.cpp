@@ -4,8 +4,9 @@
 #include <CRC32.h>
 
 #include "config.h"
+#include "secrets.h"
 
-const u_int8_t VERSION = 4;
+const u_int8_t VERSION = 1;
 
 const char MY_SSID[] = SECRET_SSID;
 const char MY_PASS[] = SECRET_PASS;
@@ -56,7 +57,10 @@ void loop()
     client.stop();
     if (client.connect(server, 9091))
     {
-      Serial.println("Connected to server");
+      Serial.print("Connected to server: ");
+      Serial.print(SERVER_IP);
+      Serial.print(":");
+      Serial.println(9091);
 
       // send CLientId
       client.write(MY_CLIENT_ID);
