@@ -1,5 +1,5 @@
 # EvChargingStationFirmware
-Arduino firmware (for [Arduino MKR WIFI 1010](https://store.arduino.cc/arduino-mkr-wifi-1010)) for my EV Charging station based on the [Viridian controller 2.0](https://ecoharmony.co.uk/collections/evse-protocol-controller/products/evse-protocol-controller-2-0). The firmware connects to my [SmartHomeServer](https://github.com/sebdehne/SmartHomeServer) software via wifi/tcp and listens for incoming requests:
+Arduino firmware (for [Arduino Nano 33 IoT](https://store.arduino.cc/arduino-nano-33-iot)) for my [EV Charging station](https://github.com/sebdehne/EvChargingStationHardware). The firmware connects to my [SmartHomeServer](https://github.com/sebdehne/SmartHomeServer) software via wifi/tcp and listens for incoming requests:
 
 Features (plannned):
 - measure and report real-time charging load (voltage & current) per phase
@@ -16,3 +16,4 @@ Dependencies:
 - [WiFiNINA](https://github.com/arduino-libraries/WiFiNINA)
 - [ArduinoOTA](https://github.com/jandrassy/ArduinoOTA) - for writing the firmware to flash
 - [CRC32](https://github.com/bakercp/CRC32)
+- [javos65/WDTZero](https://github.com/javos65/WDTZero)

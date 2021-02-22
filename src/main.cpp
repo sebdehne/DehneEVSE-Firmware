@@ -2,6 +2,7 @@
 #include <ArduinoOTA.h>
 #include <WiFiNINA.h>
 #include <CRC32.h>
+#include <WDTZero.h>
 
 #include "config.h"
 #include "secrets.h"
@@ -15,6 +16,7 @@ const u_int8_t MY_CLIENT_ID = CLIENT_ID;
 WiFiClient client;
 int status = WL_IDLE_STATUS;
 
+WDTZero MyWatchDoggy;
 IPAddress server;
 
 void setup()
@@ -22,10 +24,20 @@ void setup()
   // initialize LED digital pin as an output.
   pinMode(LED_BUILTIN, OUTPUT);
 
+  // setup ADC & DAC
+  analogWriteResolution(10);
+  analogReadResolution(12);
+
+  // setup Serial
   Serial.begin(115200);
+#ifdef DEBUG
   while (!Serial)
     ;
+#endif
 
+  MyWatchDoggy.setup(WDT_SOFTCYCLE32S);
+
+  // parse server-ip
   if (!server.fromString(SERVER_IP))
   {
     Serial.print("Could not parse IP-address: ");
@@ -34,6 +46,7 @@ void setup()
       ;
   }
 
+  // configure TCP read timeout
   client.setTimeout(10 * 1000); // 10 seconds
 
   Serial.print("Startup OK; version: ");
@@ -42,6 +55,15 @@ void setup()
 
 void loop()
 {
+  MyWatchDoggy.clear();
+
+  // For later:
+  //
+  // writing to the DAC: 10 bits (0-1023) on A0
+  // analogWrite(PIN_A0, value);
+  //
+  // reading from ADC: 12 bits (0-4096) on A1-A6
+  // analogRead(PIN_A1);
 
   // ensure wifi is up
   status = WiFi.status();
