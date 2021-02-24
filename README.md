@@ -2,9 +2,10 @@
 Arduino firmware (for [Arduino Nano 33 IoT](https://store.arduino.cc/arduino-nano-33-iot)) for my [EV Charging station](https://github.com/sebdehne/EvChargingStationHardware). The firmware connects to my [SmartHomeServer](https://github.com/sebdehne/SmartHomeServer) software via wifi/tcp and listens for incoming requests:
 
 Features (plannned):
-- measure and report real-time charging load (voltage & current) per phase
-- read and report status from the EVSE-controller
-- set max allowed charging current as requested by server
+- Control Pilot (CP) handling: communication with the car and drive an external contactor accordingly
+- read and report (to server) current charging mode (A-F)
+- measure and report real-time charging load (voltage & current) for all three phases
+- adjust max allowed charging current as requested by server
 
 Features (done):
 - over-the-air (OTA) firmware updates
