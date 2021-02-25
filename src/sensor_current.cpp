@@ -11,13 +11,13 @@ void SensorCurrent::read(AdcManager adcManager)
 
     adcManager.changeInputPin(PIN_A2);
     ADCMeasurement reading = adcManager.read(numberOgSamples);
-    phase1Milliamps = adcManager.toMilliAmps(reading);
+    phase1Milliamps = adcManager.toMainsMilliAmpsRms(reading);
 
     adcManager.changeInputPin(PIN_A3);
     reading = adcManager.read(numberOgSamples);
-    phase2Milliamps = adcManager.toMilliAmps(reading);
+    phase2Milliamps = adcManager.toMainsMilliAmpsRms(reading);
 
     adcManager.changeInputPin(PIN_A4);
     reading = adcManager.read(numberOgSamples);
-    phase3Milliamps = adcManager.toMilliAmps(reading);
+    phase3Milliamps = adcManager.toMainsMilliAmpsRms(reading);
 }

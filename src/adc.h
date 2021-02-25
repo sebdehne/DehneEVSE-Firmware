@@ -1,8 +1,8 @@
-#include <Arduino.h>
-#include "types.h"
-
 #ifndef ADC_H
 #define ADC_H
+
+#include <Arduino.h>
+#include "types.h"
 
 class AdcManager
 {
@@ -14,12 +14,13 @@ public:
     void changeInputPin(uint8_t analogPinName);
     struct ADCMeasurement read(uint16_t numberOgSamples);
 
-    uint32_t toMilliAmps(ADCMeasurement aDCMeasurement);
-    uint32_t toMilliVolts(ADCMeasurement aDCMeasurement);
+    uint32_t toMainsMilliAmpsRms(ADCMeasurement aDCMeasurement);
+    uint32_t toMainsMilliVoltsRms(ADCMeasurement aDCMeasurement);
     ProximityPilotAmps toProximityPilot(ADCMeasurement aDCMeasurement);
     PilotVoltage toControlPilot(ADCMeasurement aDCMeasurement);
 
 private:
+    uint16_t adcValueToMilliVolts(ADCMeasurement aDCMeasurement);
 };
 
 struct ADCMeasurement

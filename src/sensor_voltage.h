@@ -1,7 +1,7 @@
-#include "adc.h"
-
 #ifndef SENSOR_VOLTAGE_H
 #define SENSOR_VOLTAGE_H
+
+#include "adc.h"
 
 class SensorVoltage
 {

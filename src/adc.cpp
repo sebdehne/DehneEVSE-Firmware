@@ -75,10 +75,10 @@ void AdcManager::setup()
     // Averaging 8 samples
     ADC->CTRLB.bit.RESSEL = 1;
     while (ADC->STATUS.bit.SYNCBUSY == 1)
-      ;
+        ;
     ADC->AVGCTRL.reg = ADC_AVGCTRL_SAMPLENUM_8 | ADC_AVGCTRL_ADJRES(3);
     while (ADC->STATUS.bit.SYNCBUSY == 1)
-      ;
+        ;
 
     // REFCTRL
     ADC->REFCTRL.reg = ADC_REFCTRL_REFSEL_INTVCC1; // 1/2 VDDANA reference
@@ -142,13 +142,20 @@ struct ADCMeasurement AdcManager::read(uint16_t numberOgSamples)
     return aDCMeasurement;
 }
 
-uint32_t AdcManager::toMilliAmps(ADCMeasurement aDCMeasurement)
+uint16_t AdcManager::adcValueToMilliVolts(ADCMeasurement aDCMeasurement)
+{
+    // 0 => 0V | 4095 => 3.3V
+    uint32_t microVolts = aDCMeasurement.highest * 806;
+    return (uint16_t)(microVolts / 1000);
+}
+
+uint32_t AdcManager::toMainsMilliAmpsRms(ADCMeasurement aDCMeasurement)
 {
     // TODO
     return 0;
 }
 
-uint32_t AdcManager::toMilliVolts(ADCMeasurement aDCMeasurement)
+uint32_t AdcManager::toMainsMilliVoltsRms(ADCMeasurement aDCMeasurement)
 {
     // TODO
     return 0;
@@ -156,21 +163,78 @@ uint32_t AdcManager::toMilliVolts(ADCMeasurement aDCMeasurement)
 
 ProximityPilotAmps AdcManager::toProximityPilot(ADCMeasurement aDCMeasurement)
 {
-
-    // TODO
     /*
-     * https://en.wikipedia.org/wiki/SAE_J1772
+     * 4095 / 330V = 12,409090909090909
      * 
      * (spice simulated)
-     * 13A - 1 k Ω - 2.7 kΩ - (1.5 kΩ => 2.20V)
-     * 20A - 330 Ω – 1 kΩ   - (680  Ω => 1.25V)
+     * 
+     *   330Ω => 0.708V =>  869 ADC
+     *  1000Ω => 1,660V => 2059 ADC
+     *  2700Ω => 2,880V => 3573 ADC
+     * 
+     * https://en.wikipedia.org/wiki/SAE_J1772
+     * 
      * 32A - 150 Ω - 330 Ω  - (220  Ω => 0.33V)
+     * 20A - 330 Ω – 1 kΩ   - (680  Ω => 1.25V)
+     * 13A - 1 k Ω - 2.7 kΩ - (1.5 kΩ => 2.20V)
      */
-    return Amp13;
+    uint16_t millivolts = adcValueToMilliVolts(aDCMeasurement);
+
+    if (millivolts < 708)
+    {
+        return Amp32;
+    }
+    else if (millivolts < 1660)
+    {
+        return Amp20;
+    }
+    else
+    {
+        return Amp13;
+    }
 }
 
 PilotVoltage AdcManager::toControlPilot(ADCMeasurement aDCMeasurement)
 {
-    // TODO
-    return Volt_12;
+    /*
+     * 4095 / 330V = 12,409090909090909
+     * 
+     * (spice simulated)
+     * CP volt | Volt on ADC 
+     *    12.0 | 3.13
+     *    10.5 | 2.95
+     *     7.5 | 2.56        
+     *     4,5 | 2.17
+     *     1,5 | 1.78
+     *       0 | 1.58
+     *   -12.0 | 0
+     * 
+     */
+
+    uint16_t millivolts = adcValueToMilliVolts(aDCMeasurement);
+
+    if (millivolts < 1000)
+    {
+        return Volt_12Neg;
+    }
+    else if (millivolts < 1780)
+    {
+        return Volt_0;
+    }
+    else if (millivolts < 2170)
+    {
+        return Volt_3;
+    }
+    else if (millivolts < 2560)
+    {
+        return Volt_6;
+    }
+    else if (millivolts < 2950)
+    {
+        return Volt_9;
+    }
+    else
+    {
+        return Volt_12;
+    }
 }

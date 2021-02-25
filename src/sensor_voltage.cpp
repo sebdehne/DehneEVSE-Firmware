@@ -11,13 +11,13 @@ void SensorVoltage::read(AdcManager adcManager)
 
     adcManager.changeInputPin(PIN_A5);
     ADCMeasurement reading = adcManager.read(numberOgSamples);
-    phase1Millivolts = adcManager.toMilliVolts(reading);
+    phase1Millivolts = adcManager.toMainsMilliVoltsRms(reading);
 
     adcManager.changeInputPin(PIN_A6);
     reading = adcManager.read(numberOgSamples);
-    phase2Millivolts = adcManager.toMilliVolts(reading);
+    phase2Millivolts = adcManager.toMainsMilliVoltsRms(reading);
 
     adcManager.changeInputPin(PIN_A7);
     reading = adcManager.read(numberOgSamples);
-    phase3Millivolts = adcManager.toMilliVolts(reading);
+    phase3Millivolts = adcManager.toMainsMilliVoltsRms(reading);
 }

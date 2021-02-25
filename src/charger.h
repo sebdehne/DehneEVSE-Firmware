@@ -1,11 +1,12 @@
 
+#ifndef CHARGER_H
+#define CHARGER_H
+
 #include "pwm.h"
 #include "adc.h"
 #include "contactor.h"
 #include "config.h"
-
-#ifndef CHARGER_H
-#define CHARGER_H
+#include "logger.h"
 
 enum ChargerState
 {
@@ -20,12 +21,10 @@ enum ChargerState
 struct ChargerData
 {
     ChargerState chargerState;
-    bool isOutDoor;
     uint8_t chargeCurrentAmps;
     PilotVoltage pilotVoltage;
     ProximityPilotAmps proximityPilotAmps;
 };
-
 
 class Charger
 {
@@ -38,26 +37,26 @@ private:
     uint8_t chargeCurrentAmps;
     PilotVoltage pilotVoltage;
     ProximityPilotAmps proximityPilotAmps;
+    Logger *logger;
 
-    void handleState_A(PilotVoltage pilotVoltage, PwmD3 pwmD3, ProximityPilotAmps proximityPilotAmps, Contactor contactor);
-    void handleState_B(PilotVoltage pilotVoltage, PwmD3 pwmD3, ProximityPilotAmps proximityPilotAmps, Contactor contactor);
-    void handleState_C_OR_D(PilotVoltage pilotVoltage, PwmD3 pwmD3, ProximityPilotAmps proximityPilotAmps, Contactor contactor);
-    void handleState_E(PilotVoltage pilotVoltage, PwmD3 pwmD3, ProximityPilotAmps proximityPilotAmps, Contactor contactor);
-    void handleState_F(PilotVoltage pilotVoltage, PwmD3 pwmD3, ProximityPilotAmps proximityPilotAmps, Contactor contactor);
-    uint8_t calcPwmPercent(ProximityPilotAmps proximityPilotAmps);
+    void handleState_A(PwmD3 pwmD3, Contactor contactor);
+    void handleState_B(PwmD3 pwmD3, Contactor contactor);
+    void handleState_C_OR_D(PwmD3 pwmD3, Contactor contactor);
+    void handleState_E(PwmD3 pwmD3, Contactor contactor);
+    void handleState_F(PwmD3 pwmD3, Contactor contactor);
+    uint8_t calcPwmPercent();
     PilotVoltage readCPValue(AdcManager adcManager);
     ProximityPilotAmps readPPValue(AdcManager adcManager);
 
 public:
     Charger(bool isOutDoor, uint8_t defaultChargeCurrentAmps);
 
-    void setup(PwmD3 pwmD3, Contactor contactor);
+    void setup(PwmD3 pwmD3, Contactor contactor, Logger *logger);
 
     void tick(PwmD3 pwmD3, AdcManager adcManager, Contactor contactor);
     void setChargeCurrentAmps(uint8_t chargeCurrentAmps);
 
     ChargerData getData();
 };
-
 
 #endif

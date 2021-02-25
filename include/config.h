@@ -3,19 +3,9 @@
 #define IS_OUTDOOR false
 #define DEFAULT_CHARGE_CURRENT_AMPS 32
 #define SERVER_READ_TIMEOUT_IN_MS 10000
+#define VERSION 1
 #define DEBUG
 
-void connectToWifi();
-u_int32_t toInt(byte buf[]);
-void intToByteArray(uint32_t input, byte dst[]);
-void handleRequestFromServer(u_int8_t requestType);
-void writeSerial();
-void writeUint32Array(uint32_t word[], size_t length);
-void writeUint32(uint32_t word);
-
-#define REQUEST_TYPE_PING 1
-#define REQUEST_TYPE_FIRMWARE 2
-#define RESPONSE_TYPE_PONG 1
 
 /* 
  * 

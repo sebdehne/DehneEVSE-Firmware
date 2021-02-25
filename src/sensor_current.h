@@ -1,7 +1,7 @@
-#include "adc.h"
-
 #ifndef SENSOR_CURRENT_H
 #define SENSOR_CURRENT_H
+
+#include "adc.h"
 
 class SensorCurrent
 {
