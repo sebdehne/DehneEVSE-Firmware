@@ -9,22 +9,28 @@
 #include "pwm.h"
 #include "charger.h"
 #include "secrets.h"
+#include "contactor.h"
+#include "sensor_voltage.h"
+#include "sensor_current.h"
 
 const u_int8_t VERSION = 1;
 
 const char MY_SSID[] = SECRET_SSID;
 const char MY_PASS[] = SECRET_PASS;
-const u_int8_t MY_CLIENT_ID = CLIENT_ID;
 
 WiFiClient client;
 int status = WL_IDLE_STATUS;
 
-WDTZero MyWatchDoggy;
+WDTZero wdt;
 IPAddress server;
 
 AdcManager adcManager;
 PwmD3 pwmD3;
-Charger charger(IS_OUTDOOR);
+Charger charger(IS_OUTDOOR, DEFAULT_CHARGE_CURRENT_AMPS);
+Contactor contactor;
+SensorVoltage sensorVoltage;
+SensorCurrent sensorCurrent;
+uint32_t lastRequestFromServer;
 
 void setup()
 {
@@ -39,7 +45,7 @@ void setup()
 #endif
 
   // Setup WDT
-  MyWatchDoggy.setup(WDT_SOFTCYCLE32S);
+  wdt.setup(WDT_SOFTCYCLE32S);
 
   // parse server-ip
   if (!server.fromString(SERVER_IP))
@@ -51,7 +57,7 @@ void setup()
   }
 
   // configure TCP read timeout
-  client.setTimeout(10 * 1000); // 10 seconds
+  client.setTimeout(500);
 
   // setup & start PWM @ D3
   pwmD3.setup(100);
@@ -59,8 +65,11 @@ void setup()
   // Setup ADC for pins A0-A7
   adcManager.setup();
 
-  // setup charger
-  charger.setup(pwmD3);
+  // setup Contactor
+  contactor.setup();
+
+  // last step: setup charger
+  charger.setup(pwmD3, contactor);
 
   Serial.print("Startup OK; version: ");
   Serial.println(VERSION);
@@ -69,7 +78,10 @@ void setup()
 int p = 10;
 void loop()
 {
-  MyWatchDoggy.clear();
+  wdt.clear();
+
+  // handle charger logic
+  charger.tick(pwmD3, adcManager, contactor);
 
   // ensure wifi is up
   status = WiFi.status();
@@ -89,9 +101,10 @@ void loop()
       Serial.print(SERVER_IP);
       Serial.print(":");
       Serial.println(9091);
+      lastRequestFromServer = millis();
 
       // send CLientId
-      client.write(MY_CLIENT_ID);
+      writeSerial();
       // send Firmware version
       client.write(VERSION);
     }
@@ -102,16 +115,39 @@ void loop()
     }
   }
 
-  // read next request from server
+  // check for request from server
   byte b;
-  if (!client.readBytes(&b, 1))
+  if (client.readBytes(&b, 1))
   {
-    // nothing here right now
+    lastRequestFromServer = millis();
+    handleRequestFromServer((u_int8_t)b);
+    return;
+  }
+
+  // server timeout
+  if (millis() - lastRequestFromServer > SERVER_READ_TIMEOUT_IN_MS)
+  {
+    // server timeout
     Serial.println("Timeout while reading next command. Giving up connection");
     client.stop();
     return;
   }
-  u_int8_t requestType = (u_int8_t)b;
+}
+
+void connectToWifi()
+{
+  while (status != WL_CONNECTED)
+  {
+    Serial.print("Attempting to connect to SSID: ");
+    Serial.println(MY_SSID);
+    status = WiFi.begin(MY_SSID, MY_PASS);
+    delay(10000);
+  }
+}
+
+void handleRequestFromServer(u_int8_t requestType)
+{
+  byte b;
 
 #ifdef DEBUG
   Serial.print("Got requestType: ");
@@ -205,17 +241,6 @@ void loop()
   }
 }
 
-void connectToWifi()
-{
-  while (status != WL_CONNECTED)
-  {
-    Serial.print("Attempting to connect to SSID: ");
-    Serial.println(MY_SSID);
-    status = WiFi.begin(MY_SSID, MY_PASS);
-    delay(10000);
-  }
-}
-
 u_int32_t toInt(byte buf[])
 {
   u_int32_t result = 0;
@@ -235,4 +260,38 @@ void intToByteArray(uint32_t input, byte dst[])
   dst[1] = (input >> 16) & 0xFF;
   dst[2] = (input >> 8) & 0xFF;
   dst[3] = input & 0xFF;
+}
+
+void writeUint32Array(uint32_t word[], size_t length)
+{
+  for (size_t i = 0; i < length; i++)
+  {
+    writeUint32(word[i]);
+  }
+}
+
+void writeUint32(uint32_t word)
+{
+  byte dst[4];
+
+  dst[0] = (word >> 24) & 0xFF;
+  dst[1] = (word >> 16) & 0xFF;
+  dst[2] = (word >> 8) & 0xFF;
+  dst[3] = word & 0xFF;
+
+  client.write(dst, 4);
+}
+
+void writeSerial()
+{
+  uint32_t serial[4];
+
+  volatile uint32_t *ptr1 = (volatile uint32_t *)0x0080A00C;
+  writeUint32(*ptr1);
+  volatile uint32_t *ptr = (volatile uint32_t *)0x0080A040;
+  writeUint32(*ptr);
+  ptr++;
+  writeUint32(*ptr);
+  ptr++;
+  writeUint32(*ptr);
 }

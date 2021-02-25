@@ -53,9 +53,11 @@ void AdcManager::setup()
      * MAX sample time is 0,1ms which allowes for 200 samples per 20ms - good enough for sampling a 50Hz-sine wave
      * 
      * All those options will give the same timing:
+     * (some avergaing is good to even out some noise)
+     * 
      * PRESCALE | Nsamples
      *    DIV8  | 16
-     *   DIV16  | 8
+     *   DIV16  | 8 *
      *   DIV32  | 4
      *   DIV64  | 2
      *  DIV128  | 1
@@ -66,17 +68,17 @@ void AdcManager::setup()
     while (ADC->STATUS.bit.SYNCBUSY == 1)
         ;
 
-    ADC->CTRLB.reg = ADC_CTRLB_PRESCALER_DIV128 | ADC_CTRLB_FREERUN;
+    ADC->CTRLB.reg = ADC_CTRLB_PRESCALER_DIV16 | ADC_CTRLB_FREERUN;
     while (ADC->STATUS.bit.SYNCBUSY == 1)
         ;
 
     // Averaging 8 samples
-    //ADC->CTRLB.bit.RESSEL = 1;
-    //while (ADC->STATUS.bit.SYNCBUSY == 1)
-    //  ;
-    //ADC->AVGCTRL.reg = ADC_AVGCTRL_SAMPLENUM_16 | ADC_AVGCTRL_ADJRES(4);
-    //while (ADC->STATUS.bit.SYNCBUSY == 1)
-    //  ;
+    ADC->CTRLB.bit.RESSEL = 1;
+    while (ADC->STATUS.bit.SYNCBUSY == 1)
+      ;
+    ADC->AVGCTRL.reg = ADC_AVGCTRL_SAMPLENUM_8 | ADC_AVGCTRL_ADJRES(3);
+    while (ADC->STATUS.bit.SYNCBUSY == 1)
+      ;
 
     // REFCTRL
     ADC->REFCTRL.reg = ADC_REFCTRL_REFSEL_INTVCC1; // 1/2 VDDANA reference
@@ -142,17 +144,20 @@ struct ADCMeasurement AdcManager::read(uint16_t numberOgSamples)
 
 uint32_t AdcManager::toMilliAmps(ADCMeasurement aDCMeasurement)
 {
+    // TODO
     return 0;
 }
 
 uint32_t AdcManager::toMilliVolts(ADCMeasurement aDCMeasurement)
 {
+    // TODO
     return 0;
 }
 
 ProximityPilotAmps AdcManager::toProximityPilot(ADCMeasurement aDCMeasurement)
 {
 
+    // TODO
     /*
      * https://en.wikipedia.org/wiki/SAE_J1772
      * 
@@ -166,5 +171,6 @@ ProximityPilotAmps AdcManager::toProximityPilot(ADCMeasurement aDCMeasurement)
 
 PilotVoltage AdcManager::toControlPilot(ADCMeasurement aDCMeasurement)
 {
+    // TODO
     return Volt_12;
 }

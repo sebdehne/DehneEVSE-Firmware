@@ -18,4 +18,5 @@ enum PilotVoltage
     Volt_12Neg
 };
 
+
 #endif
