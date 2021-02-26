@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "contactor.h"
+#include "logger.h"
 
 Contactor::Contactor()
 {
@@ -9,7 +10,7 @@ void Contactor::setup()
 {
     pinMode(2, PinMode::OUTPUT);
     digitalWrite(2, LOW);
-    Serial.println("Contactor setup complete");
+    Log.log("Contactor setup complete");
 }
 
 void Contactor::switchOff()

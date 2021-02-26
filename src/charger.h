@@ -37,21 +37,21 @@ private:
     uint8_t chargeCurrentAmps;
     PilotVoltage pilotVoltage;
     ProximityPilotAmps proximityPilotAmps;
-    Logger *logger;
 
     void handleState_A(PwmD3 pwmD3, Contactor contactor);
     void handleState_B(PwmD3 pwmD3, Contactor contactor);
     void handleState_C_OR_D(PwmD3 pwmD3, Contactor contactor);
-    void handleState_E(PwmD3 pwmD3, Contactor contactor);
     void handleState_F(PwmD3 pwmD3, Contactor contactor);
     uint8_t calcPwmPercent();
     PilotVoltage readCPValue(AdcManager adcManager);
     ProximityPilotAmps readPPValue(AdcManager adcManager);
 
+    uint32_t chargeRateTooLowStarted;
+
 public:
     Charger(bool isOutDoor, uint8_t defaultChargeCurrentAmps);
 
-    void setup(PwmD3 pwmD3, Contactor contactor, Logger *logger);
+    void setup(PwmD3 pwmD3, Contactor contactor);
 
     void tick(PwmD3 pwmD3, AdcManager adcManager, Contactor contactor);
     void setChargeCurrentAmps(uint8_t chargeCurrentAmps);

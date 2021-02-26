@@ -6,12 +6,11 @@ Charger::Charger(bool isOutDoorInput, uint8_t defaultChargeCurrentAmps)
     chargeCurrentAmps = defaultChargeCurrentAmps;
 }
 
-void Charger::setup(PwmD3 pwmD3, Contactor contactor, Logger *loggerIn)
+void Charger::setup(PwmD3 pwmD3, Contactor contactor)
 {
-    logger = loggerIn;
     pwmD3.updateDutyCycle(100);
     contactor.switchOff();
-    Serial.println("Charger setup complete");
+    Log.log("Charger setup complete");
 }
 
 PilotVoltage Charger::readCPValue(AdcManager adcManager)
@@ -59,10 +58,6 @@ void Charger::tick(PwmD3 pwmD3, AdcManager adcManager, Contactor contactor)
     {
         handleState_C_OR_D(pwmD3, contactor);
     }
-    else if (chargerState == E_ShutOff)
-    {
-        handleState_E(pwmD3, contactor);
-    }
     else
     {
         handleState_F(pwmD3, contactor);
@@ -71,9 +66,9 @@ void Charger::tick(PwmD3 pwmD3, AdcManager adcManager, Contactor contactor)
 
 void Charger::handleState_A(PwmD3 pwmD3, Contactor contactor)
 {
-    if (pilotVoltage == Volt_12)
+    if (calcPwmPercent() < 10 || pilotVoltage == Volt_12 )
     {
-        // still unconnected
+        // still unconnected or forces status A when max charge rate is too low
         pwmD3.updateDutyCycle(100);
         contactor.switchOff();
         chargerState = A_Unconnected;
@@ -84,8 +79,8 @@ void Charger::handleState_A(PwmD3 pwmD3, Contactor contactor)
         pwmD3.updateDutyCycle(100);
         contactor.switchOff();
         chargerState = B_Connected;
-        Serial.println("Charging cable connected");
-        logger->log("Charging cable connected");
+
+        Log.log("Charging cable connected");
     }
 }
 
@@ -98,8 +93,8 @@ void Charger::handleState_B(PwmD3 pwmD3, Contactor contactor)
         pwmD3.updateDutyCycle(100);
         contactor.switchOff();
         chargerState = A_Unconnected;
-        Serial.println("Charging cable disconnected");
-        logger->log("Charging cable disconnected");
+
+        Log.log("Charging cable disconnected");
     }
     else if (pilotVoltage == Volt_9)
     {
@@ -115,8 +110,8 @@ void Charger::handleState_B(PwmD3 pwmD3, Contactor contactor)
         // car is ready
         contactor.switchOff();
         chargerState = C_Charging;
-        Serial.println("Car ready to charge");
-        logger->log("Car ready to charge");
+
+        Log.log("Car ready to charge");
     }
     else if (pilotVoltage == Volt_3)
     {
@@ -125,8 +120,8 @@ void Charger::handleState_B(PwmD3 pwmD3, Contactor contactor)
         // car is ready - with ventilation
         contactor.switchOff();
         chargerState = D_Ventilation;
-        Serial.println("Car ready to charge ventilation");
-        logger->log("Car ready to charge ventilation");
+
+        Log.log("Car ready to charge ventilation");
     }
     else
     {
@@ -134,38 +129,60 @@ void Charger::handleState_B(PwmD3 pwmD3, Contactor contactor)
         pwmD3.updateDutyCycle(100);
         contactor.switchOff();
         chargerState = F_Error;
-        Serial.println("Charging error");
-        logger->log("Charging error");
+
+        Log.log("Charging error");
     }
 }
 
 void Charger::handleState_C_OR_D(PwmD3 pwmD3, Contactor contactor)
 {
     /*
-     * TODO When calcPwmPercent is below 9% -> give the car 5 seconds and then force status A
+     * When calcPwmPercent is below 10% -> give the car 5 seconds and then force status A
      */
+    uint8_t pwmPercent = calcPwmPercent();
+    if (pwmPercent < 10)
+    {
+        if (chargeRateTooLowStarted == 0)
+        {
+            chargeRateTooLowStarted = millis();
+        }
+        else if (millis() - chargeRateTooLowStarted > 5000)
+        {
+            // force status A
+            pwmD3.updateDutyCycle(100);
+            contactor.switchOff();
+            chargerState = A_Unconnected;
+            chargeRateTooLowStarted = 0;
+            return;
+        }
+    } else {
+        chargeRateTooLowStarted = 0;
+    }
+
     if (pilotVoltage == Volt_12)
     {
         pwmD3.updateDutyCycle(100);
         contactor.switchOff();
         chargerState = A_Unconnected;
-        Serial.println("Disconnected while charging");
-        logger->log("Disconnected while charging");
+        chargeRateTooLowStarted = 0;
+
+        Log.log("Disconnected while charging");
     }
     else if (pilotVoltage == Volt_9)
     {
         // announce max charging rate
-        pwmD3.updateDutyCycle(calcPwmPercent());
+        pwmD3.updateDutyCycle(pwmPercent);
         // done charging
         contactor.switchOff();
         chargerState = B_Connected;
-        Serial.println("charging stopped");
-        logger->log("charging stopped");
+        chargeRateTooLowStarted = 0;
+
+        Log.log("charging stopped");
     }
     else if (pilotVoltage == Volt_6)
     {
         // announce max charging rate
-        pwmD3.updateDutyCycle(calcPwmPercent());
+        pwmD3.updateDutyCycle(pwmPercent);
         // continue charging
         contactor.switchOn();
         chargerState = C_Charging;
@@ -175,7 +192,7 @@ void Charger::handleState_C_OR_D(PwmD3 pwmD3, Contactor contactor)
         // announce max charging rate
         if (isOutDoor)
         {
-            pwmD3.updateDutyCycle(calcPwmPercent());
+            pwmD3.updateDutyCycle(pwmPercent);
             contactor.switchOn();
         }
         else
@@ -192,17 +209,11 @@ void Charger::handleState_C_OR_D(PwmD3 pwmD3, Contactor contactor)
         pwmD3.updateDutyCycle(100);
         contactor.switchOff();
         chargerState = F_Error;
-        Serial.println("charging stopped");
-        logger->log("charging stopped");
+        chargeRateTooLowStarted = 0;
+        Log.log("charging stopped");
     }
 }
 
-void Charger::handleState_E(PwmD3 pwmD3, Contactor contactor)
-{
-    pwmD3.updateDutyCycle(100);
-    contactor.switchOff();
-    chargerState = A_Unconnected;
-}
 void Charger::handleState_F(PwmD3 pwmD3, Contactor contactor)
 {
     if (pilotVoltage == Volt_12)
@@ -211,8 +222,7 @@ void Charger::handleState_F(PwmD3 pwmD3, Contactor contactor)
         pwmD3.updateDutyCycle(100);
         contactor.switchOff();
         chargerState = A_Unconnected;
-        Serial.println("Leaving error");
-        logger->log("Leaving error");
+        Log.log("Leaving error");
     }
     else
     {
@@ -239,6 +249,10 @@ uint8_t Charger::calcPwmPercent()
         amps = 32;
     }
 
+    if (amps < 6) {
+        amps = 4; // 9% duty cycle
+    }
+
     /*
      * 10% =>  6A
      * 15% => 10A
@@ -254,4 +268,7 @@ uint8_t Charger::calcPwmPercent()
 void Charger::setChargeCurrentAmps(uint8_t chargeCurrentAmpsInput)
 {
     chargeCurrentAmps = chargeCurrentAmpsInput;
+    char buf[100];
+    snprintf(buf, 100, "Max Charge-rate adjusted to %d", chargeCurrentAmps);
+    Log.log(buf);
 }

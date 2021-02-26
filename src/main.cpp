@@ -22,7 +22,6 @@ Charger charger(IS_OUTDOOR, DEFAULT_CHARGE_CURRENT_AMPS);
 Contactor contactor;
 SensorVoltage sensorVoltage;
 SensorCurrent sensorCurrent;
-Logger logger;
 
 void setup()
 {
@@ -49,13 +48,14 @@ void setup()
   contactor.setup();
 
   // last step: setup charger
-  charger.setup(pwmD3, contactor, &logger);
+  charger.setup(pwmD3, contactor);
 
   // setup server communication
-  smartHomeServerClient.setup(&charger, &sensorVoltage, &sensorCurrent, &logger);
+  smartHomeServerClient.setup(&charger, &sensorVoltage, &sensorCurrent);
 
-  Serial.print("Startup OK; version: ");
-  Serial.println(VERSION);
+  char logMsg[100];
+  snprintf(logMsg, 100, "Startup OK; version: %d", VERSION);
+  Log.log(logMsg);
 }
 
 void loop()

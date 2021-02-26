@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "adc.h"
 #include "types.h"
+#include "logger.h"
 
 AdcManager::AdcManager()
 {
@@ -90,7 +91,7 @@ void AdcManager::setup()
     while (ADC->STATUS.bit.SYNCBUSY == 1)
         ;
 
-    Serial.println("ADC setup complete");
+    Log.log("ADC setup complete");
 }
 
 void AdcManager::changeInputPin(uint8_t analogPinName)

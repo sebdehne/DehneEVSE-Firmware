@@ -9,9 +9,8 @@ SmartHomeServerClient::SmartHomeServerClient()
 {
 }
 
-void SmartHomeServerClient::setup(Charger *chargerInput, SensorVoltage *sensorVoltageInput, SensorCurrent *sensorCurrentInput, Logger *loggerIn)
+void SmartHomeServerClient::setup(Charger *chargerInput, SensorVoltage *sensorVoltageInput, SensorCurrent *sensorCurrentInput)
 {
-    logger = loggerIn;
     charger = chargerInput;
     sensorVoltage = sensorVoltageInput;
     sensorCurrent = sensorCurrentInput;
@@ -19,16 +18,14 @@ void SmartHomeServerClient::setup(Charger *chargerInput, SensorVoltage *sensorVo
     // parse server-ip
     if (!server.fromString(SERVER_IP))
     {
-        Serial.print("Could not parse IP-address: ");
-        Serial.println(SERVER_IP);
+        char logBuf[100];
+        snprintf(logBuf, 100, "Could not parse IP-address: %s", SERVER_IP);
+        Log.log(logBuf);
         while (1)
             ;
     }
 
-    // configure TCP read timeout
-    client.setTimeout(500);
-
-    Serial.println("SmartHomeServerClient setup complete");
+    Log.log("SmartHomeServerClient setup complete");
 }
 
 void SmartHomeServerClient::tick()
@@ -43,23 +40,26 @@ void SmartHomeServerClient::tick()
     // ensure TCP to server is up
     if (!client.connected())
     {
-        delay(5000);
         client.stop();
+
+        if (millis() - lastConnectionReset < 5000)
+        {
+            // 5 seconds back-off time
+            return;
+        }
+
+        lastConnectionReset = millis();
         if (client.connect(server, 9091))
         {
             char buf[100];
             snprintf(buf, 100, "Connected to server: %s:%d", SERVER_IP, 9091);
-            logger->log(buf);
-            Serial.print("Connected to server: ");
-            Serial.print(SERVER_IP);
-            Serial.print(":");
-            Serial.println(9091);
+            Log.log(buf);
 
             lastRequestFromServer = millis();
-            bytesRead = 0;
+            prepareReadingNextRequest();
 
             // send CLientId
-            uint8_t sendingBuf[17];
+            byte sendingBuf[17];
             writeSerial16Bytes(sendingBuf, 0);
             sendingBuf[16] = VERSION;
             // send Firmware version
@@ -67,64 +67,118 @@ void SmartHomeServerClient::tick()
         }
         else
         {
-            Serial.println("Could not connect to server");
+            Log.log("Could not connect to server");
             return;
         }
     }
 
     // try to read more of the initial 5 bytes (type + msgLen)
-    if (bytesRead < 5)
+    while (requestInitialBytesRead < 5)
     {
-        int read = client.readBytes(requestInitialBytes, 5 - bytesRead);
+        int read = readTimedInto(requestInitialBytes, requestInitialBytesRead, 5 - requestInitialBytesRead);
         if (read > 0)
+            requestInitialBytesRead += read;
+        else
+            break; // timeout is OK, we will come back here
+
+        if (requestInitialBytesRead == 5)
         {
-            bytesRead += read;
+            int msgLen = toInt(requestInitialBytes, 1);
+            char logBuf[100];
+            snprintf(logBuf, 100, "Got: requestType=%d msgLen=%d", requestInitialBytes[0], msgLen);
+            Log.log(logBuf);
         }
     }
 
-    if (bytesRead == 5)
+    if (requestInitialBytesRead == 5)
     {
-        lastRequestFromServer = millis();
-        bytesRead = 0;
-        uint32_t msgLen = toInt(requestInitialBytes, 1);
-        handleRequest((uint8_t)requestInitialBytes[0], msgLen);
-        return;
+        int msgLen = toInt(requestInitialBytes, 1);
+        int requestType = (int)requestInitialBytes[0];
+
+        if (requestType == REQUEST_TYPE_FIRMWARE)
+        {
+            Log.log("Handling firmware upgrade");
+            if (handleFirmwareUpgrade(msgLen))
+            {
+                prepareReadingNextRequest();
+            }
+        }
+        else
+        {
+
+            // read entire request body into buffer
+            while (requestBodyBytesRead < msgLen)
+            {
+                int read = readTimedInto(requestBodyBytes, requestBodyBytesRead, msgLen - requestBodyBytesRead);
+                if (read > 0)
+                {
+                    requestBodyBytesRead += read;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            if (requestBodyBytesRead == msgLen)
+            {
+                handleRequest(requestType, msgLen);
+                prepareReadingNextRequest();
+            }
+        }
     }
 
     // server timeout
-    if (millis() - lastRequestFromServer > SERVER_READ_TIMEOUT_IN_MS)
+    if (millis() - lastRequestFromServer > SERVER_TIMEOUT_IN_MS)
     {
         // server timeout
-        logger->log("Timeout while reading next command. Giving up connection");
-
-        Serial.println("Timeout while reading next command. Giving up connection");
+        Log.log("Timeout while reading next command. Giving up connection");
         client.stop();
         return;
     }
 }
 
-void SmartHomeServerClient::handleRequest(u_int8_t requestType, uint32_t msgLen)
+void SmartHomeServerClient::prepareReadingNextRequest()
 {
+    requestInitialBytesRead = 0;
+    requestBodyBytesRead = 0;
+    requestFirmwareCRC32BytesRead = 0;
+    requestFirmwareBytesStored = 0;
+    lastRequestFromServer = millis();
+}
 
-#ifdef DEBUG
-    Serial.print("Got requestType: ");
-    Serial.println(requestType);
-    Serial.print("Got msgLen: ");
-    Serial.println(msgLen);
-#endif
+void SmartHomeServerClient::handleRequest(int requestType, int msgLen)
+{
 
     if (requestType == REQUEST_TYPE_PING)
     {
         handlePing();
-    }
-
-    else if (requestType == REQUEST_TYPE_FIRMWARE)
-    {
-        handleFirmwareUpgrade(msgLen);
+        Log.log("Sendt pong response");
     }
     else if (requestType == REQUEST_TYPE_GET_DATA)
     {
         handleGetData();
+        Log.log("Sendt data response");
+    }
+    else if (requestType == REQUEST_TYPE_SET_CHARGE_RATE)
+    {
+        int chargeRate = requestBodyBytes[0];
+        charger->setChargeCurrentAmps(chargeRate);
+
+        byte sendingBuffer[4 + 1];
+        sendingBuffer[0] = RESPONSE_TYPE_SET_CHARGE_RATE; // response type: charge-rate
+        writeUint32(0, sendingBuffer, 1);                 // msg leng
+
+        // send
+        client.write(sendingBuffer, 5);
+
+        Log.log("Sendt chargeRate response");
+    }
+    else
+    {
+        char buf[100];
+        snprintf(buf, 100, "Unknown request type %d", requestType);
+        Log.log(buf);
     }
 
     client.flush();
@@ -147,18 +201,20 @@ void SmartHomeServerClient::handleGetData()
      * phase3Milliamps    | 4
      * wifi RSSI          | 4 (signed int)
      * system uptime      | 4
-     * bytesLogged        | 4
-     * logBuffer          | 1024
+     * logBuffer          | Log.bytesLogged
      * 
-     * Total msgLen = 1064
      */
 
-    Serial.println("Responding to GET_DATA");
+    int sendingBufferSize = 1 +              // 1: response type
+                            4 +              // 4: msgLen
+                            (1 * 4) +        // 1'er
+                            (4 * 8) +        // 4'er
+                            Log.bytesLogged; // logging buffer;
 
-    uint8_t sendingBuffer[1064 + 4 + 1];
+    byte sendingBuffer[sendingBufferSize];
 
-    sendingBuffer[0] = RESPONSE_TYPE_DATA; // response type
-    writeUint32(1064, sendingBuffer, 1);   // msg leng
+    sendingBuffer[0] = RESPONSE_TYPE_DATA;                    // response type
+    writeUint32(sendingBufferSize - 1 - 4, sendingBuffer, 1); // sendingBufferSize - type - msgLen
 
     ChargerData chargerData = charger->getData();
     sendingBuffer[5] = chargerData.chargerState;
@@ -174,86 +230,82 @@ void SmartHomeServerClient::handleGetData()
     writeUint32(sensorCurrent->phase3Milliamps, sendingBuffer, 29);
     writeInt32(WiFi.RSSI(), sendingBuffer, 33);
     writeInt32(millis(), sendingBuffer, 37);
-    writeUint32(logger->bytesLogged, sendingBuffer, 41);
-    writeCharArray(logger->logBuffer, logger->bytesLogged, sendingBuffer, 45);
-    logger->bytesLogged = 0; // clear log buffer
-    client.write(sendingBuffer, 1064 + 4 + 1);
+    writeCharArray(Log.logBuffer, Log.bytesLogged, sendingBuffer, 41);
+    Log.bytesLogged = 0; // clear local log buffer
 
-    Serial.println("DONE writing");
+    client.write(sendingBuffer, sendingBufferSize);
 }
 
-void SmartHomeServerClient::handleFirmwareUpgrade(u_int32_t msgLen)
+bool SmartHomeServerClient::handleFirmwareUpgrade(int msgLen)
 {
-    const uint32_t firmwareSize = msgLen - 4;
-
-    // read CRC32
-    uint8_t buf[4];
-    if (!client.readBytes(buf, 4))
+    while (requestFirmwareCRC32BytesRead < 4)
     {
-        client.stop();
-        return;
+        int read = readTimedInto(requestFirmwareCRC32Bytes, requestFirmwareCRC32BytesRead, 4 - requestFirmwareCRC32BytesRead);
+        if (read > 0)
+            requestFirmwareCRC32BytesRead += read;
+        else
+            break; // timeout is OK, we will come back here
     }
-    u_int32_t receivedCRC32 = toInt(buf, 0);
 
-    // write content to flash:
-    uint32_t remaining = firmwareSize;
-    InternalStorage.open(firmwareSize);
-    byte b;
-    while (remaining > 0)
+    if (requestFirmwareCRC32BytesRead < 4)
+        return false;
+
+    const int firmwareSize = msgLen - 4; // - 4 bytes crc32
+    // read firmware, 1 bytes at a time
+    int b;
+    while (requestFirmwareBytesStored < firmwareSize)
     {
-        if (!client.readBytes(&b, 1)) // reading a byte with timeout
+        b = readTimed();
+        if (b < 0) // timeout
             break;
+
+        if (requestFirmwareBytesStored == 0)
+        {
+            InternalStorage.open(firmwareSize);
+        }
+
         InternalStorage.write(b);
-        remaining--;
+        requestFirmwareBytesStored++;
     }
+
+    if (requestFirmwareBytesStored < firmwareSize)
+        return false;
+
     InternalStorage.close();
 
-    if (remaining > 0)
-    {
-        char buf[100];
-        snprintf(buf, 100, "Timeout downloading update file at %u bytes. Can't continue with update.", (unsigned int)remaining);
-        logger->log(buf);
-        client.stop();
-        return;
-    }
-
     // calc crc32
+    unsigned receivedCRC32 = toUInt(requestFirmwareCRC32Bytes, 0);
     crc32.reset();
-    uint8_t *addr = (uint8_t *)InternalStorage.STORAGE_START_ADDRESS;
-    for (size_t i = 0; i < firmwareSize; i++)
+    byte *addr = (byte *)InternalStorage.STORAGE_START_ADDRESS;
+    for (int i = 0; i < firmwareSize; i++)
     {
+
         crc32.update(*addr);
         addr++;
     }
-    uint32_t firmwareChecksum = crc32.finalize();
+    unsigned int firmwareChecksum = crc32.finalize();
 
     if (firmwareChecksum != receivedCRC32)
     {
-        Serial.print("Received ");
-        Serial.print(firmwareSize);
-        Serial.print(" bytes, but received CRC32=");
-        Serial.print(receivedCRC32);
-        Serial.print(" doesnt match calculated CRC32=");
-        Serial.println(firmwareChecksum);
+        char logBuf[200];
+        snprintf(logBuf, 200, "CRC32-error: firmwareSize=%d receivedCRC32=%u firmwareChecksum=%u", firmwareSize, receivedCRC32, firmwareChecksum);
+        Log.log(logBuf);
     }
     else
     {
-        Serial.println("Rebooting to new firmware now");
+        Log.log("Rebooting to new firmware now");
         Serial.flush();
+        delay(1000);
         InternalStorage.apply();
     }
+
+    return true;
 }
 
 void SmartHomeServerClient::handlePing()
 {
-    Serial.println("Responding to PING");
-    char buf[100];
-    snprintf(buf, 100, "Responding to PING");
-    logger->log(buf);
-
     // write pong response
-
-    uint8_t sendingBuffer[4 + 1];
+    byte sendingBuffer[4 + 1];
     sendingBuffer[0] = RESPONSE_TYPE_PONG; // response type: pong
     writeUint32(0, sendingBuffer, 1);      // msg leng
 
@@ -265,20 +317,30 @@ void SmartHomeServerClient::connectToWifi()
 {
     while (wifiStatus != WL_CONNECTED)
     {
-        Serial.print("Attempting to connect to SSID: ");
-        Serial.println(MY_SSID);
         char buf[100];
         snprintf(buf, 100, "Attempting to connect to SSID: %s", MY_SSID);
-        logger->log(buf);
+        Log.log(buf);
 
         wifiStatus = WiFi.begin(MY_SSID, MY_PASS);
         delay(10000);
     }
 }
 
-uint32_t SmartHomeServerClient::toInt(byte src[], size_t srcOffset)
+int SmartHomeServerClient::toInt(byte src[], int srcOffset)
 {
-    uint32_t result = 0;
+    int result = 0;
+    result = result + src[srcOffset + 0];
+    result <<= 8;
+    result = result + src[srcOffset + 1];
+    result <<= 8;
+    result = result + src[srcOffset + 2];
+    result <<= 8;
+    result = result + src[srcOffset + 3];
+    return result;
+}
+unsigned int SmartHomeServerClient::toUInt(byte src[], int srcOffset)
+{
+    unsigned int result = 0;
     result = result + src[srcOffset + 0];
     result <<= 8;
     result = result + src[srcOffset + 1];
@@ -289,35 +351,28 @@ uint32_t SmartHomeServerClient::toInt(byte src[], size_t srcOffset)
     return result;
 }
 
-void SmartHomeServerClient::writeUint32(uint32_t src, uint8_t dst[], size_t dstOffset)
+void SmartHomeServerClient::writeUint32(unsigned int src, byte dst[], int dstOffset)
 {
     dst[dstOffset + 0] = (src >> 24) & 0xFF;
     dst[dstOffset + 1] = (src >> 16) & 0xFF;
     dst[dstOffset + 2] = (src >> 8) & 0xFF;
     dst[dstOffset + 3] = src & 0xFF;
 }
-void SmartHomeServerClient::writeInt32(int32_t src, uint8_t dst[], size_t dstOffset)
+void SmartHomeServerClient::writeInt32(int src, byte dst[], int dstOffset)
 {
     dst[dstOffset + 0] = (src >> 24) & 0xFF;
     dst[dstOffset + 1] = (src >> 16) & 0xFF;
     dst[dstOffset + 2] = (src >> 8) & 0xFF;
     dst[dstOffset + 3] = src & 0xFF;
 }
-void SmartHomeServerClient::writeUint32Array(uint32_t src[], size_t srcLen, uint8_t dst[], size_t dstOffset)
+void SmartHomeServerClient::writeCharArray(char src[], int srcLength, byte dst[], int dstOffset)
 {
-    for (size_t i = 0; i < srcLen; i++)
-    {
-        writeUint32(src[i], dst, dstOffset + (i * 4));
-    }
-}
-void SmartHomeServerClient::writeCharArray(char src[], size_t srcLength, uint8_t dst[], size_t dstOffset)
-{
-    for (size_t i = 0; i < srcLength; i++)
+    for (int i = 0; i < srcLength; i++)
     {
         dst[dstOffset + i] = src[i];
     }
 }
-void SmartHomeServerClient::writeSerial16Bytes(uint8_t dst[], size_t dstOffset)
+void SmartHomeServerClient::writeSerial16Bytes(byte dst[], int dstOffset)
 {
     volatile uint32_t *ptr1 = (volatile uint32_t *)0x0080A00C;
     writeUint32(*ptr1, dst, dstOffset);
@@ -327,4 +382,41 @@ void SmartHomeServerClient::writeSerial16Bytes(uint8_t dst[], size_t dstOffset)
     writeUint32(*ptr, dst, dstOffset + 8);
     ptr++;
     writeUint32(*ptr, dst, dstOffset + 12);
+}
+
+int SmartHomeServerClient::readTimedInto(byte dst[], int dstOffset, int length)
+{
+    int bytesRead = 0;
+    int b;
+    while (bytesRead < length)
+    {
+        b = readTimed();
+        if (b < 0)
+            break;
+
+        dst[dstOffset + bytesRead++] = b;
+    }
+
+    return bytesRead;
+}
+
+int SmartHomeServerClient::readTimed()
+{
+    unsigned long startTime = millis();
+    int b;
+    while (1)
+    {
+        if (millis() - startTime > TCP_READ_TIMEOUT_IN_MS)
+        {
+            break;
+        }
+
+        b = client.read();
+        if (b >= 0)
+        {
+            return b;
+        }
+    }
+
+    return -1;
 }

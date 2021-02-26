@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "pwm.h"
+#include "logger.h"
 
 PwmD3::PwmD3() {}
 
@@ -77,7 +78,8 @@ void PwmD3::setup(uint8_t initialPwmDutyCycle_percent)
   while (TCC0->SYNCBUSY.bit.ENABLE)
     ; // Wait for synchronization
 
-  Serial.println("PWM setup complete");
+
+  Log.log("PWM setup complete");
 }
 
 void PwmD3::updateDutyCycle(uint8_t pwmDutyCycle_percent)

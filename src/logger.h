@@ -2,8 +2,7 @@
 #define _LOGGER_H
 
 #include <Arduino.h>
-
-#define LOG_BUFFER_SIZE 1024
+#include "config.h"
 
 class Logger
 {
@@ -15,5 +14,7 @@ public:
     Logger();
     void log(const char *msg);
 };
+
+extern Logger Log;
 
 #endif
