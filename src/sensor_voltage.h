@@ -1,19 +1,21 @@
 #ifndef SENSOR_VOLTAGE_H
 #define SENSOR_VOLTAGE_H
 
-#include "adc.h"
 
-class SensorVoltage
+class SensorVoltageClass
 {
 private:
+    const unsigned int numberOgSamples = 600; // try to catch at least 2 sine waves
+
 public:
-    SensorVoltage();
+    SensorVoltageClass();
 
-    uint32_t phase1Millivolts;
-    uint32_t phase2Millivolts;
-    uint32_t phase3Millivolts;
-
-    void read(AdcManager adcManager);
+    unsigned long phase1Millivolts();
+    unsigned long phase2Millivolts();
+    unsigned long phase3Millivolts();
+    
 };
+
+extern SensorVoltageClass SensorVoltage;
 
 #endif

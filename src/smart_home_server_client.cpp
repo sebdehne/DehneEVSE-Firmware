@@ -1,19 +1,22 @@
 #include <Arduino.h>
-#include "smart_home_server_client.h"
-#include "config.h"
 #include <WiFiNINA.h>
 #include <ArduinoOTA.h>
 #include <CRC32.h>
+#include "smart_home_server_client.h"
+#include "pwm.h"
+#include "adc.h"
+#include "contactor.h"
+#include "sensor_current.h"
+#include "sensor_voltage.h"
 
-SmartHomeServerClient::SmartHomeServerClient()
+SmartHomeServerClientClass SmartHomeServerClient;
+
+SmartHomeServerClientClass::SmartHomeServerClientClass()
 {
 }
 
-void SmartHomeServerClient::setup(Charger *chargerInput, SensorVoltage *sensorVoltageInput, SensorCurrent *sensorCurrentInput)
+void SmartHomeServerClientClass::setup()
 {
-    charger = chargerInput;
-    sensorVoltage = sensorVoltageInput;
-    sensorCurrent = sensorCurrentInput;
 
     // parse server-ip
     if (!server.fromString(SERVER_IP))
@@ -28,8 +31,9 @@ void SmartHomeServerClient::setup(Charger *chargerInput, SensorVoltage *sensorVo
     Log.log("SmartHomeServerClient setup complete");
 }
 
-void SmartHomeServerClient::tick()
+void SmartHomeServerClientClass::tick(bool sendNotify)
 {
+
     // ensure wifi is up
     wifiStatus = WiFi.status();
     if (wifiStatus != WL_CONNECTED)
@@ -55,7 +59,6 @@ void SmartHomeServerClient::tick()
             snprintf(buf, 100, "Connected to server: %s:%d", SERVER_IP, 9091);
             Log.log(buf);
 
-            lastRequestFromServer = millis();
             prepareReadingNextRequest();
 
             // send CLientId
@@ -75,7 +78,7 @@ void SmartHomeServerClient::tick()
     // try to read more of the initial 5 bytes (type + msgLen)
     while (requestInitialBytesRead < 5)
     {
-        int read = readTimedInto(requestInitialBytes, requestInitialBytesRead, 5 - requestInitialBytesRead);
+        int read = readInto(requestInitialBytes, requestInitialBytesRead, 5 - requestInitialBytesRead);
         if (read > 0)
             requestInitialBytesRead += read;
         else
@@ -84,9 +87,11 @@ void SmartHomeServerClient::tick()
         if (requestInitialBytesRead == 5)
         {
             int msgLen = toInt(requestInitialBytes, 1);
+#ifdef DEBUG
             char logBuf[100];
             snprintf(logBuf, 100, "Got: requestType=%d msgLen=%d", requestInitialBytes[0], msgLen);
             Log.log(logBuf);
+#endif
         }
     }
 
@@ -109,7 +114,7 @@ void SmartHomeServerClient::tick()
             // read entire request body into buffer
             while (requestBodyBytesRead < msgLen)
             {
-                int read = readTimedInto(requestBodyBytes, requestBodyBytesRead, msgLen - requestBodyBytesRead);
+                int read = readInto(requestBodyBytes, requestBodyBytesRead, msgLen - requestBodyBytesRead);
                 if (read > 0)
                 {
                     requestBodyBytesRead += read;
@@ -136,9 +141,21 @@ void SmartHomeServerClient::tick()
         client.stop();
         return;
     }
+
+    if (sendNotify)
+    {
+        unsigned char sendingBuffer[4 + 1];
+        sendingBuffer[0] = NOTIFY_TYPE_DATA_CHANGED; // response type: charge-rate
+        writeUint32(0, sendingBuffer, 1);            // msg leng
+
+        // send
+        client.write(sendingBuffer, 5);
+
+        Log.log("Notify dataChanged sent");
+    }
 }
 
-void SmartHomeServerClient::prepareReadingNextRequest()
+void SmartHomeServerClientClass::prepareReadingNextRequest()
 {
     requestInitialBytesRead = 0;
     requestBodyBytesRead = 0;
@@ -147,32 +164,69 @@ void SmartHomeServerClient::prepareReadingNextRequest()
     lastRequestFromServer = millis();
 }
 
-void SmartHomeServerClient::handleRequest(int requestType, int msgLen)
+void SmartHomeServerClientClass::handleRequest(int requestType, int msgLen)
 {
 
     if (requestType == REQUEST_TYPE_PING)
     {
         handlePing();
+#ifdef DEBUG
         Log.log("Sendt pong response");
+#endif
     }
-    else if (requestType == REQUEST_TYPE_GET_DATA)
+    else if (requestType == REQUEST_TYPE_COLLECT_DATA)
     {
-        handleGetData();
+        handleCollectData();
+#ifdef DEBUG
         Log.log("Sendt data response");
+#endif
     }
-    else if (requestType == REQUEST_TYPE_SET_CHARGE_RATE)
+    else if (requestType == REQUEST_TYPE_SET_PWM_PERCENT)
     {
-        int chargeRate = requestBodyBytes[0];
-        charger->setChargeCurrentAmps(chargeRate);
+        unsigned int pwmPercent = requestBodyBytes[0];
 
-        byte sendingBuffer[4 + 1];
-        sendingBuffer[0] = RESPONSE_TYPE_SET_CHARGE_RATE; // response type: charge-rate
+        PwmD3.updateDutyCycle(pwmPercent);
+
+        unsigned char sendingBuffer[4 + 1];
+        sendingBuffer[0] = RESPONSE_TYPE_SET_PWM_PERCENT; // response type: charge-rate
         writeUint32(0, sendingBuffer, 1);                 // msg leng
 
         // send
         client.write(sendingBuffer, 5);
 
-        Log.log("Sendt chargeRate response");
+        char buf[100];
+        snprintf(buf, 100, "PWM percent updated to %u", pwmPercent);
+        Log.log(buf);
+    }
+    else if (requestType == REQUEST_TYPE_SET_CONTACTOR_STATE)
+    {
+        unsigned int contactorState = requestBodyBytes[0];
+        bool isCurrentlyOn = Contactor.isOn();
+
+        char buf[100];
+        if (contactorState == 1 && !isCurrentlyOn)
+        {
+            Contactor.switchOn();
+            snprintf(buf, 100, "Switched contactor on");
+        }
+        else if (contactorState == 0 && isCurrentlyOn)
+        {
+            Contactor.switchOff();
+            snprintf(buf, 100, "Switched contactor off");
+        }
+        else
+        {
+            snprintf(buf, 100, "Contactor already in state=%u", contactorState);
+        }
+
+        unsigned char sendingBuffer[4 + 1];
+        sendingBuffer[0] = RESPONSE_TYPE_SET_CONTACTOR_STATE; // response type: charge-rate
+        writeUint32(0, sendingBuffer, 1);                     // msg leng
+
+        // send
+        client.write(sendingBuffer, 5);
+
+        Log.log(buf);
     }
     else
     {
@@ -184,13 +238,14 @@ void SmartHomeServerClient::handleRequest(int requestType, int msgLen)
     client.flush();
 }
 
-void SmartHomeServerClient::handleGetData()
+void SmartHomeServerClientClass::handleCollectData()
 {
+    
     /*
      * 
      * [field]            | size in bytes
-     * chargingState      | 1
-     * chargeCurrentAmps  | 1
+     * contactor          | 1
+     * pwmPercent         | 1
      * pilotVoltage       | 1
      * proximityPilotAmps | 1
      * phase1Millivolts   | 4
@@ -202,7 +257,6 @@ void SmartHomeServerClient::handleGetData()
      * wifi RSSI          | 4 (signed int)
      * system uptime      | 4
      * logBuffer          | Log.bytesLogged
-     * 
      */
 
     int sendingBufferSize = 1 +              // 1: response type
@@ -211,23 +265,21 @@ void SmartHomeServerClient::handleGetData()
                             (4 * 8) +        // 4'er
                             Log.bytesLogged; // logging buffer;
 
-    byte sendingBuffer[sendingBufferSize];
+    unsigned char sendingBuffer[sendingBufferSize];
 
-    sendingBuffer[0] = RESPONSE_TYPE_DATA;                    // response type
+    sendingBuffer[0] = RESPONSE_TYPE_COLLECT_DATA;            // response type
     writeUint32(sendingBufferSize - 1 - 4, sendingBuffer, 1); // sendingBufferSize - type - msgLen
 
-    ChargerData chargerData = charger->getData();
-    sendingBuffer[5] = chargerData.chargerState;
-    sendingBuffer[6] = chargerData.chargeCurrentAmps;
-    sendingBuffer[7] = chargerData.pilotVoltage;
-    sendingBuffer[8] = chargerData.proximityPilotAmps;
-
-    writeUint32(sensorVoltage->phase1Millivolts, sendingBuffer, 9);
-    writeUint32(sensorVoltage->phase2Millivolts, sendingBuffer, 13);
-    writeUint32(sensorVoltage->phase3Millivolts, sendingBuffer, 17);
-    writeUint32(sensorCurrent->phase1Milliamps, sendingBuffer, 21);
-    writeUint32(sensorCurrent->phase2Milliamps, sendingBuffer, 25);
-    writeUint32(sensorCurrent->phase3Milliamps, sendingBuffer, 29);
+    writeBool(Contactor.isOn(), sendingBuffer, 5);
+    writeUint8(PwmD3.getCurrentPwmDutyCycle_percent(), sendingBuffer, 6);
+    writeUint8(AdcManager.currentPilotVoltage, sendingBuffer, 7);
+    writeUint8(AdcManager.currentProximityPilotAmps, sendingBuffer, 8);
+    writeUint32(SensorVoltage.phase1Millivolts(), sendingBuffer, 9);
+    writeUint32(SensorVoltage.phase2Millivolts(), sendingBuffer, 13);
+    writeUint32(SensorVoltage.phase3Millivolts(), sendingBuffer, 17);
+    writeUint32(SensorCurrent.phase1Milliamps(), sendingBuffer, 21);
+    writeUint32(SensorCurrent.phase2Milliamps(), sendingBuffer, 25);
+    writeUint32(SensorCurrent.phase3Milliamps(), sendingBuffer, 29);
     writeInt32(WiFi.RSSI(), sendingBuffer, 33);
     writeInt32(millis(), sendingBuffer, 37);
     writeCharArray(Log.logBuffer, Log.bytesLogged, sendingBuffer, 41);
@@ -236,11 +288,11 @@ void SmartHomeServerClient::handleGetData()
     client.write(sendingBuffer, sendingBufferSize);
 }
 
-bool SmartHomeServerClient::handleFirmwareUpgrade(int msgLen)
+bool SmartHomeServerClientClass::handleFirmwareUpgrade(int msgLen)
 {
     while (requestFirmwareCRC32BytesRead < 4)
     {
-        int read = readTimedInto(requestFirmwareCRC32Bytes, requestFirmwareCRC32BytesRead, 4 - requestFirmwareCRC32BytesRead);
+        int read = readInto(requestFirmwareCRC32Bytes, requestFirmwareCRC32BytesRead, 4 - requestFirmwareCRC32BytesRead);
         if (read > 0)
             requestFirmwareCRC32BytesRead += read;
         else
@@ -255,7 +307,7 @@ bool SmartHomeServerClient::handleFirmwareUpgrade(int msgLen)
     int b;
     while (requestFirmwareBytesStored < firmwareSize)
     {
-        b = readTimed();
+        b = readSingle();
         if (b < 0) // timeout
             break;
 
@@ -302,7 +354,7 @@ bool SmartHomeServerClient::handleFirmwareUpgrade(int msgLen)
     return true;
 }
 
-void SmartHomeServerClient::handlePing()
+void SmartHomeServerClientClass::handlePing()
 {
     // write pong response
     byte sendingBuffer[4 + 1];
@@ -313,7 +365,7 @@ void SmartHomeServerClient::handlePing()
     client.write(sendingBuffer, 5);
 }
 
-void SmartHomeServerClient::connectToWifi()
+void SmartHomeServerClientClass::connectToWifi()
 {
     while (wifiStatus != WL_CONNECTED)
     {
@@ -326,7 +378,7 @@ void SmartHomeServerClient::connectToWifi()
     }
 }
 
-int SmartHomeServerClient::toInt(byte src[], int srcOffset)
+int SmartHomeServerClientClass::toInt(byte src[], int srcOffset)
 {
     int result = 0;
     result = result + src[srcOffset + 0];
@@ -338,7 +390,7 @@ int SmartHomeServerClient::toInt(byte src[], int srcOffset)
     result = result + src[srcOffset + 3];
     return result;
 }
-unsigned int SmartHomeServerClient::toUInt(byte src[], int srcOffset)
+unsigned int SmartHomeServerClientClass::toUInt(byte src[], int srcOffset)
 {
     unsigned int result = 0;
     result = result + src[srcOffset + 0];
@@ -351,28 +403,41 @@ unsigned int SmartHomeServerClient::toUInt(byte src[], int srcOffset)
     return result;
 }
 
-void SmartHomeServerClient::writeUint32(unsigned int src, byte dst[], int dstOffset)
+void SmartHomeServerClientClass::writeBool(bool src, byte dst[], int dstOffset)
+{
+    if (src)
+        dst[dstOffset] = 1;
+    else
+        dst[dstOffset] = 0;
+}
+
+void SmartHomeServerClientClass::writeUint8(unsigned char src, byte dst[], int dstOffset)
+{
+    dst[dstOffset] = src;
+}
+
+void SmartHomeServerClientClass::writeUint32(unsigned int src, byte dst[], int dstOffset)
 {
     dst[dstOffset + 0] = (src >> 24) & 0xFF;
     dst[dstOffset + 1] = (src >> 16) & 0xFF;
     dst[dstOffset + 2] = (src >> 8) & 0xFF;
     dst[dstOffset + 3] = src & 0xFF;
 }
-void SmartHomeServerClient::writeInt32(int src, byte dst[], int dstOffset)
+void SmartHomeServerClientClass::writeInt32(int src, byte dst[], int dstOffset)
 {
     dst[dstOffset + 0] = (src >> 24) & 0xFF;
     dst[dstOffset + 1] = (src >> 16) & 0xFF;
     dst[dstOffset + 2] = (src >> 8) & 0xFF;
     dst[dstOffset + 3] = src & 0xFF;
 }
-void SmartHomeServerClient::writeCharArray(char src[], int srcLength, byte dst[], int dstOffset)
+void SmartHomeServerClientClass::writeCharArray(char src[], int srcLength, byte dst[], int dstOffset)
 {
     for (int i = 0; i < srcLength; i++)
     {
         dst[dstOffset + i] = src[i];
     }
 }
-void SmartHomeServerClient::writeSerial16Bytes(byte dst[], int dstOffset)
+void SmartHomeServerClientClass::writeSerial16Bytes(byte dst[], int dstOffset)
 {
     volatile uint32_t *ptr1 = (volatile uint32_t *)0x0080A00C;
     writeUint32(*ptr1, dst, dstOffset);
@@ -384,13 +449,13 @@ void SmartHomeServerClient::writeSerial16Bytes(byte dst[], int dstOffset)
     writeUint32(*ptr, dst, dstOffset + 12);
 }
 
-int SmartHomeServerClient::readTimedInto(byte dst[], int dstOffset, int length)
+int SmartHomeServerClientClass::readInto(byte dst[], int dstOffset, int length)
 {
     int bytesRead = 0;
     int b;
     while (bytesRead < length)
     {
-        b = readTimed();
+        b = readSingle();
         if (b < 0)
             break;
 
@@ -400,23 +465,7 @@ int SmartHomeServerClient::readTimedInto(byte dst[], int dstOffset, int length)
     return bytesRead;
 }
 
-int SmartHomeServerClient::readTimed()
+int SmartHomeServerClientClass::readSingle()
 {
-    unsigned long startTime = millis();
-    int b;
-    while (1)
-    {
-        if (millis() - startTime > TCP_READ_TIMEOUT_IN_MS)
-        {
-            break;
-        }
-
-        b = client.read();
-        if (b >= 0)
-        {
-            return b;
-        }
-    }
-
-    return -1;
+    return client.read();
 }

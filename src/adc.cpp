@@ -1,13 +1,14 @@
 #include <Arduino.h>
 #include "adc.h"
-#include "types.h"
 #include "logger.h"
 
-AdcManager::AdcManager()
+AdcManagerClass AdcManager;
+
+AdcManagerClass::AdcManagerClass()
 {
 }
 
-void AdcManager::setup()
+void AdcManagerClass::setup()
 {
     /*
      * A) Pins setup
@@ -94,7 +95,7 @@ void AdcManager::setup()
     Log.log("ADC setup complete");
 }
 
-void AdcManager::changeInputPin(uint8_t analogPinName)
+void AdcManagerClass::changeInputPin(unsigned int analogPinName)
 {
     // Disable ADC
     ADC->CTRLA.bit.ENABLE = 0;
@@ -113,7 +114,7 @@ void AdcManager::changeInputPin(uint8_t analogPinName)
 }
 
 // 100us per sample. 200 samples == 20000us/20ms
-struct ADCMeasurement AdcManager::read(uint16_t numberOgSamples)
+struct ADCMeasurement AdcManagerClass::read(unsigned int numberOgSamples)
 {
 
     struct ADCMeasurement aDCMeasurement;
@@ -126,7 +127,7 @@ struct ADCMeasurement AdcManager::read(uint16_t numberOgSamples)
         while (ADC->INTFLAG.bit.RESRDY == 0)
             ;
 
-        int newValue = ADC->RESULT.reg;
+        unsigned long newValue = ADC->RESULT.reg;
         while (ADC->STATUS.bit.SYNCBUSY == 1)
             ;
 
@@ -143,26 +144,51 @@ struct ADCMeasurement AdcManager::read(uint16_t numberOgSamples)
     return aDCMeasurement;
 }
 
-uint16_t AdcManager::adcValueToMilliVolts(ADCMeasurement aDCMeasurement)
+bool AdcManagerClass::updatePilotVoltageAndProximityPilotAmps()
+{
+    AdcManager.changeInputPin(pinControlPilot);
+    ADCMeasurement cpADCMeasurement = AdcManager.read(200);
+    PilotVoltage newPilotVoltage = AdcManager.toControlPilot(cpADCMeasurement);
+
+    AdcManager.changeInputPin(pinProxymityPilot);
+    ADCMeasurement ppADCMeasurement = AdcManager.read(200);
+    ProximityPilotAmps newProximityPilotAmps = AdcManager.toProximityPilot(ppADCMeasurement);
+
+    bool changeDetected = false;
+    if (newPilotVoltage != currentPilotVoltage)
+    {
+        currentPilotVoltage = newPilotVoltage;
+        changeDetected = true;
+    }
+    if (newProximityPilotAmps != currentProximityPilotAmps)
+    {
+        currentProximityPilotAmps = newProximityPilotAmps;
+        changeDetected = true;
+    }
+
+    return changeDetected;
+}
+
+unsigned long AdcManagerClass::adcValueToMilliVolts(ADCMeasurement aDCMeasurement)
 {
     // 0 => 0V | 4095 => 3.3V
     uint32_t microVolts = aDCMeasurement.highest * 806;
     return (uint16_t)(microVolts / 1000);
 }
 
-uint32_t AdcManager::toMainsMilliAmpsRms(ADCMeasurement aDCMeasurement)
+unsigned long AdcManagerClass::toMainsMilliAmpsRms(ADCMeasurement aDCMeasurement)
 {
     // TODO
     return 0;
 }
 
-uint32_t AdcManager::toMainsMilliVoltsRms(ADCMeasurement aDCMeasurement)
+unsigned long AdcManagerClass::toMainsMilliVoltsRms(ADCMeasurement aDCMeasurement)
 {
     // TODO
     return 0;
 }
 
-ProximityPilotAmps AdcManager::toProximityPilot(ADCMeasurement aDCMeasurement)
+ProximityPilotAmps AdcManagerClass::toProximityPilot(ADCMeasurement aDCMeasurement)
 {
     /*
      * 4095 / 330V = 12,409090909090909
@@ -179,7 +205,7 @@ ProximityPilotAmps AdcManager::toProximityPilot(ADCMeasurement aDCMeasurement)
      * 20A - 330 Ω – 1 kΩ   - (680  Ω => 1.25V)
      * 13A - 1 k Ω - 2.7 kΩ - (1.5 kΩ => 2.20V)
      */
-    uint16_t millivolts = adcValueToMilliVolts(aDCMeasurement);
+    unsigned long millivolts = adcValueToMilliVolts(aDCMeasurement);
 
     if (millivolts < 708)
     {
@@ -195,7 +221,7 @@ ProximityPilotAmps AdcManager::toProximityPilot(ADCMeasurement aDCMeasurement)
     }
 }
 
-PilotVoltage AdcManager::toControlPilot(ADCMeasurement aDCMeasurement)
+PilotVoltage AdcManagerClass::toControlPilot(ADCMeasurement aDCMeasurement)
 {
     /*
      * 4095 / 330V = 12,409090909090909
@@ -212,15 +238,11 @@ PilotVoltage AdcManager::toControlPilot(ADCMeasurement aDCMeasurement)
      * 
      */
 
-    uint16_t millivolts = adcValueToMilliVolts(aDCMeasurement);
+    unsigned long millivolts = adcValueToMilliVolts(aDCMeasurement);
 
-    if (millivolts < 1000)
+    if (millivolts < 1780)
     {
-        return Volt_12Neg;
-    }
-    else if (millivolts < 1780)
-    {
-        return Volt_0;
+        return Fault;
     }
     else if (millivolts < 2170)
     {

@@ -4,38 +4,38 @@
 #include <WiFiNINA.h>
 #include <CRC32.h>
 #include "secrets.h"
-#include "charger.h"
-#include "sensor_voltage.h"
-#include "sensor_current.h"
 #include "logger.h"
-#include "config.h"
 
 const char MY_SSID[] = SECRET_SSID;
 const char MY_PASS[] = SECRET_PASS;
 
 #define REQUEST_TYPE_PING 1
 #define REQUEST_TYPE_FIRMWARE 2
-#define REQUEST_TYPE_GET_DATA 3
-#define REQUEST_TYPE_SET_CHARGE_RATE 4
+#define REQUEST_TYPE_COLLECT_DATA 3
+#define REQUEST_TYPE_SET_PWM_PERCENT 4
+#define REQUEST_TYPE_SET_CONTACTOR_STATE 5
 
 #define RESPONSE_TYPE_PONG 1
-#define RESPONSE_TYPE_DATA 2
-#define RESPONSE_TYPE_SET_CHARGE_RATE 3
+#define RESPONSE_TYPE_COLLECT_DATA 2
+#define RESPONSE_TYPE_SET_PWM_PERCENT 3
+#define RESPONSE_TYPE_SET_CONTACTOR_STATE 4
 
-class SmartHomeServerClient
+#define NOTIFY_TYPE_DATA_CHANGED 100
+
+class SmartHomeServerClientClass
 {
 private:
     CRC32 crc32;
 
-    byte requestInitialBytes[5];
+    unsigned char requestInitialBytes[5];
     int requestInitialBytesRead = 0;
 
     // non-firmware requests
-    byte requestBodyBytes[REQUEST_BODY_BUFFER_SIZE];
+    unsigned char requestBodyBytes[REQUEST_BODY_BUFFER_SIZE];
     int requestBodyBytesRead = 0;
 
     // firmware
-    byte requestFirmwareCRC32Bytes[4];
+    unsigned char requestFirmwareCRC32Bytes[4];
     int requestFirmwareCRC32BytesRead = 0;
     int requestFirmwareBytesStored = 0;
 
@@ -44,21 +44,20 @@ private:
     IPAddress server;
     unsigned long lastRequestFromServer;
     unsigned long lastConnectionReset;
-    Charger *charger;
-    SensorVoltage *sensorVoltage;
-    SensorCurrent *sensorCurrent;
 
     void connectToWifi();
     void prepareReadingNextRequest();
 
-    int readTimedInto(byte dst[], int dstOffset, int length);
-    int readTimed();
+    int readInto(byte dst[], int dstOffset, int length);
+    int readSingle();
 
     bool handleFirmwareUpgrade(int msgLen);
     void handleRequest(int requestType, int msgLen);
     void handlePing();
-    void handleGetData();
+    void handleCollectData();
 
+    void writeUint8(unsigned char src, byte dst[], int dstOffset);
+    void writeBool(bool src, byte dst[], int dstOffset);
     void writeUint32(unsigned int src, byte dst[], int dstOffset);
     void writeInt32(int src, byte dst[], int dstOffset);
     void writeCharArray(char src[], int srcLength, byte dst[], int dstOffset);
@@ -68,10 +67,12 @@ private:
     unsigned int toUInt(byte src[], int srcOffset);
 
 public:
-    SmartHomeServerClient();
-    void setup(Charger *charger, SensorVoltage *sensorVoltage, SensorCurrent *sensorCurrent);
+    SmartHomeServerClientClass();
+    void setup();
 
-    void tick();
+    void tick(bool dataChangeDetected);
 };
+
+extern SmartHomeServerClientClass SmartHomeServerClient;
 
 #endif

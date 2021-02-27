@@ -1,23 +1,30 @@
+#include <Arduino.h>
 #include "sensor_current.h"
+#include "adc.h"
 
-SensorCurrent::SensorCurrent()
+SensorCurrentClass SensorCurrent;
+
+SensorCurrentClass::SensorCurrentClass()
 {
 }
 
-void SensorCurrent::read(AdcManager adcManager)
+unsigned long SensorCurrentClass::phase1Milliamps()
 {
-    // pins A2 - A4
-    const uint16_t numberOgSamples = 600; // try to catch at least 2 sine waves
+    AdcManager.changeInputPin(PIN_A2);
+    ADCMeasurement reading = AdcManager.read(numberOgSamples);
+    return AdcManager.toMainsMilliAmpsRms(reading);
+}
 
-    adcManager.changeInputPin(PIN_A2);
-    ADCMeasurement reading = adcManager.read(numberOgSamples);
-    phase1Milliamps = adcManager.toMainsMilliAmpsRms(reading);
+unsigned long SensorCurrentClass::phase2Milliamps()
+{
+    AdcManager.changeInputPin(PIN_A3);
+    ADCMeasurement reading = AdcManager.read(numberOgSamples);
+    return AdcManager.toMainsMilliAmpsRms(reading);
+}
 
-    adcManager.changeInputPin(PIN_A3);
-    reading = adcManager.read(numberOgSamples);
-    phase2Milliamps = adcManager.toMainsMilliAmpsRms(reading);
-
-    adcManager.changeInputPin(PIN_A4);
-    reading = adcManager.read(numberOgSamples);
-    phase3Milliamps = adcManager.toMainsMilliAmpsRms(reading);
+unsigned long SensorCurrentClass::phase3Milliamps()
+{
+    AdcManager.changeInputPin(PIN_A4);
+    ADCMeasurement reading = AdcManager.read(numberOgSamples);
+    return AdcManager.toMainsMilliAmpsRms(reading);
 }

@@ -5,17 +5,21 @@
 
 /*
  * PWM on pin D3
- */ 
-class PwmD3
+ */
+class PwmD3Class
 {
 private:
-    const uint32_t per = 375;
+    const unsigned int per = 375;
 
+    unsigned int currentPwmDutyCycle_percent = 100;
 public:
-    PwmD3();
+    PwmD3Class();
 
-    void updateDutyCycle(uint8_t pwmDutyCycle_percent);
-    void setup(uint8_t initialPwmDutyCycle_percent);
+    void setup();
+    void updateDutyCycle(unsigned char pwmDutyCycle_percent);
+    unsigned int getCurrentPwmDutyCycle_percent();
 };
+
+extern PwmD3Class PwmD3;
 
 #endif

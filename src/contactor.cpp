@@ -2,28 +2,30 @@
 #include "contactor.h"
 #include "logger.h"
 
-Contactor::Contactor()
+ContactorClass Contactor;
+
+ContactorClass::ContactorClass()
 {
 }
 
-void Contactor::setup()
+void ContactorClass::setup()
 {
     pinMode(2, PinMode::OUTPUT);
     digitalWrite(2, LOW);
     Log.log("Contactor setup complete");
 }
 
-void Contactor::switchOff()
+void ContactorClass::switchOff()
 {
     digitalWrite(2, LOW);
 }
 
-void Contactor::switchOn()
+void ContactorClass::switchOn()
 {
     digitalWrite(2, HIGH);
 }
 
-bool Contactor::isOn()
+bool ContactorClass::isOn()
 {
     return digitalRead(2) == HIGH;
 }

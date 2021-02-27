@@ -2,31 +2,58 @@
 #define ADC_H
 
 #include <Arduino.h>
-#include "types.h"
 
-class AdcManager
+enum ProximityPilotAmps
+{
+    Amp13,
+    Amp20,
+    Amp32
+};
+
+enum PilotVoltage
+{
+    Volt_12,
+    Volt_9,
+    Volt_6,
+    Volt_3,
+    Fault
+};
+
+class AdcManagerClass
 {
 
 public:
-    AdcManager();
+    AdcManagerClass();
 
     void setup();
-    void changeInputPin(uint8_t analogPinName);
-    struct ADCMeasurement read(uint16_t numberOgSamples);
 
-    uint32_t toMainsMilliAmpsRms(ADCMeasurement aDCMeasurement);
-    uint32_t toMainsMilliVoltsRms(ADCMeasurement aDCMeasurement);
-    ProximityPilotAmps toProximityPilot(ADCMeasurement aDCMeasurement);
-    PilotVoltage toControlPilot(ADCMeasurement aDCMeasurement);
+    bool updatePilotVoltageAndProximityPilotAmps();
+
+    PilotVoltage currentPilotVoltage;
+    ProximityPilotAmps currentProximityPilotAmps;
+
+    void changeInputPin(unsigned int analogPinName);
+    struct ADCMeasurement read(unsigned int numberOgSamples);
+
+    unsigned long toMainsMilliAmpsRms(ADCMeasurement aDCMeasurement);
+    unsigned long toMainsMilliVoltsRms(ADCMeasurement aDCMeasurement);
 
 private:
-    uint16_t adcValueToMilliVolts(ADCMeasurement aDCMeasurement);
+    const unsigned long pinProxymityPilot = PIN_A0;
+    const unsigned long pinControlPilot = PIN_A1;
+
+    unsigned long adcValueToMilliVolts(ADCMeasurement aDCMeasurement);
+
+    ProximityPilotAmps toProximityPilot(ADCMeasurement aDCMeasurement);
+    PilotVoltage toControlPilot(ADCMeasurement aDCMeasurement);
 };
 
 struct ADCMeasurement
 {
-    uint16_t lowest;
-    uint16_t highest;
+    unsigned long lowest;
+    unsigned long highest;
 };
+
+extern AdcManagerClass AdcManager;
 
 #endif

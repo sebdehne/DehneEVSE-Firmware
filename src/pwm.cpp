@@ -2,7 +2,9 @@
 #include "pwm.h"
 #include "logger.h"
 
-PwmD3::PwmD3() {}
+PwmD3Class PwmD3;
+
+PwmD3Class::PwmD3Class() {}
 
 /*
  * Using dual-slope PWM
@@ -11,7 +13,7 @@ PwmD3::PwmD3() {}
  * 
  * Thus: DIV=64 & PER=375
  */
-void PwmD3::setup(uint8_t initialPwmDutyCycle_percent)
+void PwmD3Class::setup()
 {
   // uses GCLK4
   // MRK 1010:      PA11
@@ -71,19 +73,19 @@ void PwmD3::setup(uint8_t initialPwmDutyCycle_percent)
     ; // Wait for synchronization
 
   // Set start duty cycle
-  updateDutyCycle(initialPwmDutyCycle_percent);
+  updateDutyCycle(currentPwmDutyCycle_percent);
 
   // C.4 Enable
   REG_TCC0_CTRLA |= TCC_CTRLA_ENABLE; // Enable the TCC0 output
   while (TCC0->SYNCBUSY.bit.ENABLE)
     ; // Wait for synchronization
 
-
   Log.log("PWM setup complete");
 }
 
-void PwmD3::updateDutyCycle(uint8_t pwmDutyCycle_percent)
+void PwmD3Class::updateDutyCycle(uint8_t pwmDutyCycle_percent)
 {
+
 #ifdef mkrwifi1010
   REG_TCC0_CC3 = (per * pwmDutyCycle_percent) / 100; // TCC0 on D3 -> WO[3] -> CC3
   while (TCC0->SYNCBUSY.bit.CC3)
@@ -94,6 +96,11 @@ void PwmD3::updateDutyCycle(uint8_t pwmDutyCycle_percent)
   while (TCC0->SYNCBUSY.bit.CC1)
     ; // Wait for synchronization
 #endif
+
+  currentPwmDutyCycle_percent = pwmDutyCycle_percent;
 }
 
-
+unsigned int PwmD3Class::getCurrentPwmDutyCycle_percent()
+{
+  return currentPwmDutyCycle_percent;
+}

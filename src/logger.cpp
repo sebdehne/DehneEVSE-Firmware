@@ -6,7 +6,7 @@ Logger::Logger() {}
 void Logger::log(const char *input)
 {
 
-    uint32_t inputLen = strlen(input);
+    size_t inputLen = strlen(input);
 
     size_t bufLen = inputLen + 12 + 1;
     char buf[bufLen];

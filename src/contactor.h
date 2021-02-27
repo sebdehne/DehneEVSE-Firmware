@@ -2,18 +2,19 @@
 #ifndef CONTACTOR_H
 #define CONTACTOR_H
 
-class Contactor
+class ContactorClass
 {
 
 private:
-    /* data */
 public:
-    Contactor();
+    ContactorClass();
     void setup();
 
     void switchOff();
     void switchOn();
     bool isOn();
 };
+
+extern ContactorClass Contactor;
 
 #endif

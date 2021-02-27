@@ -1,19 +1,19 @@
 #ifndef SENSOR_CURRENT_H
 #define SENSOR_CURRENT_H
 
-#include "adc.h"
-
-class SensorCurrent
+class SensorCurrentClass
 {
 private:
+    const unsigned int numberOgSamples = 600; // try to catch at least 2 sine waves
+
 public:
-    SensorCurrent();
+    SensorCurrentClass();
 
-    uint32_t phase1Milliamps;
-    uint32_t phase2Milliamps;
-    uint32_t phase3Milliamps;
-
-    void read(AdcManager adcManager);
+    unsigned long phase1Milliamps();
+    unsigned long phase2Milliamps();
+    unsigned long phase3Milliamps();
 };
+
+extern SensorCurrentClass SensorCurrent;
 
 #endif
