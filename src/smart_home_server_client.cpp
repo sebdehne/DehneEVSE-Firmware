@@ -34,6 +34,17 @@ void SmartHomeServerClientClass::setup()
 void SmartHomeServerClientClass::tick(bool sendNotify)
 {
 
+    // server charging timeout
+    if (millis() - lastRequestFromServer > SERVER_CHARGING_TIMEOUT_IN_MS &&
+        (Contactor.isOn() || PwmD3.getCurrentPwmDutyCycle_percent() != 100))
+    {
+        // no communication with server for too long, disabling off charging
+        Log.log("Disabling charging due to missing server comunication");
+        Contactor.switchOff();
+        PwmD3.updateDutyCycle(100);
+        return;
+    }
+
     // ensure wifi is up
     wifiStatus = WiFi.status();
     if (wifiStatus != WL_CONNECTED)
@@ -134,7 +145,7 @@ void SmartHomeServerClientClass::tick(bool sendNotify)
     }
 
     // server timeout
-    if (millis() - lastRequestFromServer > SERVER_TIMEOUT_IN_MS)
+    if (millis() - lastRequestFromServer > SERVER_CONNECTION_TIMEOUT_IN_MS)
     {
         // server timeout
         Log.log("Timeout while reading next command. Giving up connection");
@@ -240,7 +251,7 @@ void SmartHomeServerClientClass::handleRequest(int requestType, int msgLen)
 
 void SmartHomeServerClientClass::handleCollectData()
 {
-    
+
     /*
      * 
      * [field]            | size in bytes

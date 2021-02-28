@@ -157,11 +157,17 @@ bool AdcManagerClass::updatePilotVoltageAndProximityPilotAmps()
     bool changeDetected = false;
     if (newPilotVoltage != currentPilotVoltage)
     {
+        char buf[100];
+        snprintf(buf, 100, "Pilot voltage changed from %d to %d", currentPilotVoltage, newPilotVoltage);
+        Log.log(buf);
         currentPilotVoltage = newPilotVoltage;
         changeDetected = true;
     }
     if (newProximityPilotAmps != currentProximityPilotAmps)
     {
+        char buf[100];
+        snprintf(buf, 100, "Proximity voltage changed from %d to %d", currentProximityPilotAmps, newProximityPilotAmps);
+        Log.log(buf);
         currentProximityPilotAmps = newProximityPilotAmps;
         changeDetected = true;
     }
