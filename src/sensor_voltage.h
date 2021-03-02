@@ -5,7 +5,7 @@
 class SensorVoltageClass
 {
 private:
-    const unsigned int numberOgSamples = 600; // try to catch at least 2 sine waves
+    const unsigned int numberOgSamples = 5 * 800; // try to catch at least 5 sine waves
 
 public:
     SensorVoltageClass();

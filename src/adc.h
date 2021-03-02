@@ -29,8 +29,8 @@ public:
 
     bool updatePilotVoltageAndProximityPilotAmps();
 
-    PilotVoltage currentPilotVoltage;
-    ProximityPilotAmps currentProximityPilotAmps;
+    PilotVoltage currentPilotVoltage = Volt_12;
+    ProximityPilotAmps currentProximityPilotAmps = Amp32;
 
     void changeInputPin(unsigned int analogPinName);
     struct ADCMeasurement read(unsigned int numberOgSamples);

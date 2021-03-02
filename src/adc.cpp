@@ -52,17 +52,34 @@ void AdcManagerClass::setup()
 
     /*
      * B) ADC setup
-     * MAX sample time is 0,1ms which allowes for 200 samples per 20ms - good enough for sampling a 50Hz-sine wave
+     * MAX sample time is 0,025ms which allowes for 800 samples per 20ms - good enough for sampling a 50Hz-sine wave
      * 
      * All those options will give the same timing:
      * (some avergaing is good to even out some noise)
      * 
+     * 0,1ms sample time:
      * PRESCALE | Nsamples
-     *    DIV8  | 16
-     *   DIV16  | 8 *
+     *    DIV8  | 16 *
+     *   DIV16  | 8
      *   DIV32  | 4
      *   DIV64  | 2
      *  DIV128  | 1
+     * 
+     * 0,05ms sample time:
+     * PRESCALE | Nsamples
+     *    DIV4  | 16
+     *    DIV8  | 8
+     *   DIV16  | 4
+     *   DIV32  | 2
+     *   DIV64  | 1
+     * 
+     * 0,025ms sample time:
+     * PRESCALE | Nsamples
+     *    DIV4  | 8
+     *    DIV8  | 4
+     *   DIV16  | 2
+     *   DIV32  | 1 (most stable output)
+     * 
      */
 
     // disable ADC
@@ -70,17 +87,17 @@ void AdcManagerClass::setup()
     while (ADC->STATUS.bit.SYNCBUSY == 1)
         ;
 
-    ADC->CTRLB.reg = ADC_CTRLB_PRESCALER_DIV16 | ADC_CTRLB_FREERUN;
+    ADC->CTRLB.reg = ADC_CTRLB_PRESCALER_DIV32 | ADC_CTRLB_FREERUN;
     while (ADC->STATUS.bit.SYNCBUSY == 1)
         ;
 
     // Averaging 8 samples
-    ADC->CTRLB.bit.RESSEL = 1;
-    while (ADC->STATUS.bit.SYNCBUSY == 1)
-        ;
-    ADC->AVGCTRL.reg = ADC_AVGCTRL_SAMPLENUM_8 | ADC_AVGCTRL_ADJRES(3);
-    while (ADC->STATUS.bit.SYNCBUSY == 1)
-        ;
+    //ADC->CTRLB.bit.RESSEL = 1;
+    //while (ADC->STATUS.bit.SYNCBUSY == 1)
+    //    ;
+    //ADC->AVGCTRL.reg = ADC_AVGCTRL_SAMPLENUM_8 | ADC_AVGCTRL_ADJRES(3);
+    //while (ADC->STATUS.bit.SYNCBUSY == 1)
+    //    ;
 
     // REFCTRL
     ADC->REFCTRL.reg = ADC_REFCTRL_REFSEL_INTVCC1; // 1/2 VDDANA reference
@@ -111,13 +128,19 @@ void AdcManagerClass::changeInputPin(unsigned int analogPinName)
     ADC->CTRLA.bit.ENABLE = 1;
     while (ADC->STATUS.bit.SYNCBUSY == 1)
         ;
+
+    read(10); // changing input produced invalid data - consume it first
 }
 
-// 100us per sample. 200 samples == 20000us/20ms
+// ***25us*** per sample
+// for 50Hz -> use 1600 sampels to catch 2 waves
+// for 1kHz -> use 80 sampels to catch 2 waves
 struct ADCMeasurement AdcManagerClass::read(unsigned int numberOgSamples)
 {
 
     struct ADCMeasurement aDCMeasurement;
+    aDCMeasurement.highest = 0;
+    aDCMeasurement.lowest = 1 << 12;
     while (numberOgSamples-- > 0)
     {
         // no need to start - using free running
@@ -147,11 +170,11 @@ struct ADCMeasurement AdcManagerClass::read(unsigned int numberOgSamples)
 bool AdcManagerClass::updatePilotVoltageAndProximityPilotAmps()
 {
     AdcManager.changeInputPin(pinControlPilot);
-    ADCMeasurement cpADCMeasurement = AdcManager.read(200);
+    ADCMeasurement cpADCMeasurement = AdcManager.read(80); // 2 waves
     PilotVoltage newPilotVoltage = AdcManager.toControlPilot(cpADCMeasurement);
 
     AdcManager.changeInputPin(pinProxymityPilot);
-    ADCMeasurement ppADCMeasurement = AdcManager.read(200);
+    ADCMeasurement ppADCMeasurement = AdcManager.read(80); // 2 waves
     ProximityPilotAmps newProximityPilotAmps = AdcManager.toProximityPilot(ppADCMeasurement);
 
     bool changeDetected = false;
@@ -184,13 +207,13 @@ unsigned long AdcManagerClass::adcValueToMilliVolts(ADCMeasurement aDCMeasuremen
 
 unsigned long AdcManagerClass::toMainsMilliAmpsRms(ADCMeasurement aDCMeasurement)
 {
-    // TODO
+    // TODO RMS!
     return 0;
 }
 
 unsigned long AdcManagerClass::toMainsMilliVoltsRms(ADCMeasurement aDCMeasurement)
 {
-    // TODO
+    // TODO RMS!
     return 0;
 }
 
@@ -213,6 +236,12 @@ ProximityPilotAmps AdcManagerClass::toProximityPilot(ADCMeasurement aDCMeasureme
      */
     unsigned long millivolts = adcValueToMilliVolts(aDCMeasurement);
 
+#ifdef ADC_DEBUG
+    char buf[100];
+    snprintf(buf, 100, "PP millivolts=%lu high=%lu low=%lu", millivolts, aDCMeasurement.highest, aDCMeasurement.lowest);
+    Serial.println(buf);
+#endif
+
     if (millivolts < 708)
     {
         return Amp32;
@@ -230,35 +259,36 @@ ProximityPilotAmps AdcManagerClass::toProximityPilot(ADCMeasurement aDCMeasureme
 PilotVoltage AdcManagerClass::toControlPilot(ADCMeasurement aDCMeasurement)
 {
     /*
-     * 4095 / 330V = 12,409090909090909
+     * R9 = 47k
+     * R10 = 200k
+     * R11 = 82k
      * 
-     * (spice simulated)
-     * CP volt | Volt on ADC 
-     *    12.0 | 3.13
-     *    10.5 | 2.95
-     *     7.5 | 2.56        
-     *     4,5 | 2.17
-     *     1,5 | 1.78
-     *       0 | 1.58
-     *   -12.0 | 0
+     * Open: 2.92V -> millivolts=2899
+     * Car 2.6k -> millivolts=2546
      * 
      */
 
     unsigned long millivolts = adcValueToMilliVolts(aDCMeasurement);
 
+#ifdef ADC_DEBUG
+    char buf[100];
+    snprintf(buf, 100, "CP millivolts=%lu high=%lu low=%lu", millivolts, aDCMeasurement.highest, aDCMeasurement.lowest);
+    Serial.println(buf);
+#endif
+
     if (millivolts < 1780)
     {
         return Fault;
     }
-    else if (millivolts < 2170)
+    else if (millivolts < 2000)
     {
         return Volt_3;
     }
-    else if (millivolts < 2560)
+    else if (millivolts < 2400)
     {
         return Volt_6;
     }
-    else if (millivolts < 2950)
+    else if (millivolts < 2722)
     {
         return Volt_9;
     }
