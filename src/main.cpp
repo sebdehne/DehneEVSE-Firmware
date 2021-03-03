@@ -10,13 +10,14 @@
 #include "contactor.h"
 #include "smart_home_server_client.h"
 #include "logger.h"
+#include "LED.h"
 
 WDTZero wdt;
 
 void setup()
 {
-  // initialize LED digital pin as an output.
-  pinMode(LED_BUILTIN, OUTPUT);
+
+  LED.setup();
 
   // setup Serial
   Serial.begin(115200);
@@ -26,7 +27,7 @@ void setup()
 #endif
 
   // Setup WDT
-  wdt.setup(WDT_SOFTCYCLE32S);
+  //wdt.setup(WDT_SOFTCYCLE32S);
 
   // setup & start PWM @ D3
   PwmD3.setup();
@@ -43,6 +44,9 @@ void setup()
   char logMsg[100];
   snprintf(logMsg, 100, "Startup OK; version: %d", VERSION);
   Log.log(logMsg);
+
+  LED.blink(3, 500);
+  delay(2000);
 }
 
 void loop()
