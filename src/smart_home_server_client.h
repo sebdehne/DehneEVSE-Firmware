@@ -56,16 +56,6 @@ private:
     void handlePing();
     void handleCollectData();
 
-    void writeUint8(unsigned char src, byte dst[], int dstOffset);
-    void writeBool(bool src, byte dst[], int dstOffset);
-    void writeUint32(unsigned int src, byte dst[], int dstOffset);
-    void writeInt32(int src, byte dst[], int dstOffset);
-    void writeCharArray(char src[], int srcLength, byte dst[], int dstOffset);
-    void writeSerial16Bytes(byte dst[], int dstOffset);
-
-    int toInt(byte src[], int srcOffset);
-    unsigned int toUInt(byte src[], int srcOffset);
-
 public:
     SmartHomeServerClientClass();
     void setup();

@@ -207,13 +207,17 @@ unsigned long AdcManagerClass::adcValueToMilliVolts(ADCMeasurement aDCMeasuremen
 
 unsigned long AdcManagerClass::toMainsMilliAmpsRms(ADCMeasurement aDCMeasurement)
 {
-    // TODO RMS!
-    return 0;
+    unsigned long toMilliVolts_peak = adcValueToMilliVolts(aDCMeasurement);
+    return (toMilliVolts_peak * 707) / 20;
 }
 
 unsigned long AdcManagerClass::toMainsMilliVoltsRms(ADCMeasurement aDCMeasurement)
 {
-    // TODO RMS!
+    unsigned long toMilliVolts_peak = adcValueToMilliVolts(aDCMeasurement);
+    unsigned long adcVoltRms = (toMilliVolts_peak * 707) / 1000;
+
+    // TODO map adcVoltRms to Volt Mains
+
     return 0;
 }
 
@@ -276,19 +280,19 @@ PilotVoltage AdcManagerClass::toControlPilot(ADCMeasurement aDCMeasurement)
     Serial.println(buf);
 #endif
 
-    if (millivolts < 1780)
+    if (millivolts < 2000)
     {
         return Fault;
     }
-    else if (millivolts < 2000)
+    else if (millivolts < 2300)
     {
         return Volt_3;
     }
-    else if (millivolts < 2400)
+    else if (millivolts < 2600)
     {
         return Volt_6;
     }
-    else if (millivolts < 2722)
+    else if (millivolts < 2950)
     {
         return Volt_9;
     }
