@@ -170,11 +170,11 @@ struct ADCMeasurement AdcManagerClass::read(unsigned int numberOgSamples)
 bool AdcManagerClass::updatePilotVoltageAndProximityPilotAmps()
 {
     AdcManager.changeInputPin(pinControlPilot);
-    ADCMeasurement cpADCMeasurement = AdcManager.read(80); // 2 waves
+    ADCMeasurement cpADCMeasurement = AdcManager.read(160); // 4 waves
     PilotVoltage newPilotVoltage = AdcManager.toControlPilot(cpADCMeasurement);
 
     AdcManager.changeInputPin(pinProxymityPilot);
-    ADCMeasurement ppADCMeasurement = AdcManager.read(80); // 2 waves
+    ADCMeasurement ppADCMeasurement = AdcManager.read(160); // 4 waves
     ProximityPilotAmps newProximityPilotAmps = AdcManager.toProximityPilot(ppADCMeasurement);
 
     bool changeDetected = false;
@@ -267,7 +267,11 @@ PilotVoltage AdcManagerClass::toControlPilot(ADCMeasurement aDCMeasurement)
      * R10 = 200k
      * R11 = 82k
      * 
-     * Open: 2.92V -> millivolts=2899
+     * Open:      2324mV (step: 634)
+     * Connected: 1690mV (step: 535)
+     * Ready:     1155mV (step: 535)
+     * Vent :     620mV
+     * Fault :    
      * Car 2.6k -> millivolts=2546
      * 
      */
@@ -280,19 +284,19 @@ PilotVoltage AdcManagerClass::toControlPilot(ADCMeasurement aDCMeasurement)
     Serial.println(buf);
 #endif
 
-    if (millivolts < 2000)
+    if (millivolts < 352)
     {
         return Fault;
     }
-    else if (millivolts < 2300)
+    else if (millivolts < 887)
     {
         return Volt_3;
     }
-    else if (millivolts < 2600)
+    else if (millivolts < 1422)
     {
         return Volt_6;
     }
-    else if (millivolts < 2950)
+    else if (millivolts < 2007)
     {
         return Volt_9;
     }
