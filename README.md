@@ -1,5 +1,5 @@
-# EvChargingStationFirmware
-Arduino firmware (for [Arduino Nano 33 IoT](https://store.arduino.cc/arduino-nano-33-iot)) for my [EV Charging station](https://github.com/sebdehne/EvChargingStationHardware). The firmware connects to my [SmartHomeServer](https://github.com/sebdehne/SmartHomeServer) software via wifi/tcp.
+# DehneEVSE Firmware
+Arduino firmware (for [Arduino Nano 33 IoT](https://store.arduino.cc/arduino-nano-33-iot)) for my [DehneEVSE](https://github.com/sebdehne/DehneEVSE-Hardware). The firmware connects to my [SmartHomeServer](https://github.com/sebdehne/SmartHomeServer) software via wifi/tcp.
 
 Features:
 - Over-the-air (OTA) firmware updates
