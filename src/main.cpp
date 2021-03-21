@@ -53,12 +53,6 @@ void loop()
 {
   wdt.clear();
 
-#ifdef ADC_DEBUG
-  AdcManager.updatePilotVoltageAndProximityPilotAmps();
-  delay(1000);
-  return;
-#endif
-
   bool dataChanged = AdcManager.updatePilotVoltageAndProximityPilotAmps();
 
   SmartHomeServerClient.tick(dataChanged);
