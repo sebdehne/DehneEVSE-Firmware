@@ -8,8 +8,7 @@ enum ProximityPilotAmps
     Amp13,
     Amp20,
     Amp32,
-    NoCable,
-
+    NoCable
 };
 
 enum PilotVoltage
@@ -35,7 +34,7 @@ public:
     ProximityPilotAmps currentProximityPilotAmps = Amp32;
 
     void changeInputPin(unsigned int analogPinName);
-    struct ADCMeasurement read(unsigned int numberOgSamples);
+    struct ADCMeasurement read(unsigned int numberOgSamples, int avg, int shift);
 
 private:
     const unsigned long pinProxymityPilot = PIN_A0;

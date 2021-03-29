@@ -129,17 +129,15 @@ void AdcManagerClass::changeInputPin(unsigned int analogPinName)
     while (ADC->STATUS.bit.SYNCBUSY == 1)
         ;
 
-    read(10); // changing input produced invalid data - consume it first
+    read(10, 1, 0); // changing input produced invalid data - consume it first
 }
 
 // ***25us*** per sample
 // for 50Hz -> 800 sampels to catch 1 cycle
 // for 1kHz -> 40 sampels catches 1 cycle
-struct ADCMeasurement AdcManagerClass::read(unsigned int numberOgSamples)
+struct ADCMeasurement AdcManagerClass::read(unsigned int numberOgSamples, int avg, int shift)
 {
 
-    int avg = 8;
-    int shift = 3;
     unsigned long sample;
     unsigned int remaining = numberOgSamples / avg;
 
@@ -184,11 +182,11 @@ struct ADCMeasurement AdcManagerClass::read(unsigned int numberOgSamples)
 bool AdcManagerClass::updatePilotVoltageAndProximityPilotAmps()
 {
     AdcManager.changeInputPin(pinControlPilot);
-    ADCMeasurement cpADCMeasurement = AdcManager.read(160); // 4 cycles
+    ADCMeasurement cpADCMeasurement = AdcManager.read(160, 1, 0); // 4 cycles
     PilotVoltage newPilotVoltage = AdcManager.toControlPilot(cpADCMeasurement);
 
     AdcManager.changeInputPin(pinProxymityPilot);
-    ADCMeasurement ppADCMeasurement = AdcManager.read(160); // 4 cycles
+    ADCMeasurement ppADCMeasurement = AdcManager.read(160, 1, 0); // 4 cycles
     ProximityPilotAmps newProximityPilotAmps = AdcManager.toProximityPilot(ppADCMeasurement);
 
     bool changeDetected = false;
@@ -237,6 +235,14 @@ ProximityPilotAmps AdcManagerClass::toProximityPilot(ADCMeasurement aDCMeasureme
      */
     unsigned long millivolts = adcValueToMilliVolts(aDCMeasurement);
 
+    //Serial.print("PP: ");
+    //Serial.print(millivolts);
+    //Serial.print("mV / ADC: ");
+    //Serial.print(aDCMeasurement.highest);
+    //Serial.println();
+    //delay(1000);
+
+
     if (millivolts < 1129)
     {
         return Amp32;
@@ -278,19 +284,26 @@ PilotVoltage AdcManagerClass::toControlPilot(ADCMeasurement aDCMeasurement)
 
     unsigned long millivolts = adcValueToMilliVolts(aDCMeasurement);
 
-    if (millivolts < 352)
+    //Serial.print("CP: ");
+    //Serial.print(millivolts);
+    //Serial.print("mV / ADC: ");
+    //Serial.print(aDCMeasurement.highest);
+    //Serial.println();
+    //delay(1000);
+
+    if (millivolts < 100)
     {
         return Fault;
     }
-    else if (millivolts < 887)
+    else if (millivolts < 662)
     {
         return Volt_3;
     }
-    else if (millivolts < 1422)
+    else if (millivolts < 1344)
     {
         return Volt_6;
     }
-    else if (millivolts < 2007)
+    else if (millivolts < 2026)
     {
         return Volt_9;
     }
