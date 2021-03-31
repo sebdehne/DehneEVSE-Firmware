@@ -183,10 +183,12 @@ bool AdcManagerClass::updatePilotVoltageAndProximityPilotAmps()
 {
     AdcManager.changeInputPin(pinControlPilot);
     ADCMeasurement cpADCMeasurement = AdcManager.read(160, 1, 0); // 4 cycles
+    currentPilotControlAdc = cpADCMeasurement.highest;
     PilotVoltage newPilotVoltage = AdcManager.toControlPilot(cpADCMeasurement);
 
     AdcManager.changeInputPin(pinProxymityPilot);
     ADCMeasurement ppADCMeasurement = AdcManager.read(160, 1, 0); // 4 cycles
+    currentProximityPilotAdc = ppADCMeasurement.highest;
     ProximityPilotAmps newProximityPilotAmps = AdcManager.toProximityPilot(ppADCMeasurement);
 
     bool changeDetected = false;

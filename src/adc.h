@@ -32,6 +32,8 @@ public:
 
     PilotVoltage currentPilotVoltage = Volt_12;
     ProximityPilotAmps currentProximityPilotAmps = Amp32;
+    unsigned long currentPilotControlAdc;
+    unsigned long currentProximityPilotAdc;
 
     void changeInputPin(unsigned int analogPinName);
     struct ADCMeasurement read(unsigned int numberOgSamples, int avg, int shift);

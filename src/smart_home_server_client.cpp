@@ -273,8 +273,8 @@ void SmartHomeServerClientClass::handleCollectData()
 
     int sendingBufferSize = 1 +              // 1: response type
                             4 +              // 4: msgLen
-                            (1 * 4) +        // 1'er
-                            (4 * 8) +        // 4'er
+                            (4 * 1) +        // 1'er
+                            (10 * 4) +        // 4'er
                             Log.bytesLogged; // logging buffer;
 
     unsigned char sendingBuffer[sendingBufferSize];
@@ -294,7 +294,9 @@ void SmartHomeServerClientClass::handleCollectData()
     writeUint32(SensorCurrent.phase3Milliamps(), sendingBuffer, 29);
     writeInt32(WiFi.RSSI(), sendingBuffer, 33);
     writeInt32(millis(), sendingBuffer, 37);
-    writeCharArray(Log.logBuffer, Log.bytesLogged, sendingBuffer, 41);
+    writeUint32(AdcManager.currentPilotControlAdc, sendingBuffer, 41);
+    writeUint32(AdcManager.currentProximityPilotAdc, sendingBuffer, 45);
+    writeCharArray(Log.logBuffer, Log.bytesLogged, sendingBuffer, 49);
     Log.bytesLogged = 0; // clear local log buffer
 
     client.write(sendingBuffer, sendingBufferSize);
