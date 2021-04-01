@@ -1,5 +1,6 @@
-# DehneEVSE Firmware
-Arduino firmware (for [Arduino Nano 33 IoT](https://store.arduino.cc/arduino-nano-33-iot)) for my [DehneEVSE](https://github.com/sebdehne/DehneEVSE-Hardware). The firmware connects to my [SmartHomeServer](https://github.com/sebdehne/SmartHomeServer) software via wifi/tcp.
+# DehneEVSE Open source EV Charging Station - Firmware
+
+Arduino firmware (for [Arduino Nano 33 IoT](https://store.arduino.cc/arduino-nano-33-iot)) for my [DehneEVSE EV Charging Station](https://dehnes.com/electronics/2021/03/31/dehneevse_charging_station.html).
 
 Features:
 - Over-the-air (OTA) firmware updates
@@ -8,9 +9,6 @@ Features:
   - notify server as soon as a change in voltage is detected
 - measure and report Proximity Pilot (PP) to server
 - measure and report real-time charging load (voltage & current) for all three phases
-
-Using the measured charging-load, the server calculates how much charging-current is allowed at a time to enable load-sharing between multiple charging-stations (or to disable charging when energy prices are too high) and sends the max charging current back to this controller.
-
 
 Dependencies:
 - [WiFiNINA](https://github.com/arduino-libraries/WiFiNINA)
