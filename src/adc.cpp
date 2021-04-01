@@ -195,7 +195,7 @@ bool AdcManagerClass::updatePilotVoltageAndProximityPilotAmps()
     if (newPilotVoltage != currentPilotVoltage)
     {
         char buf[100];
-        snprintf(buf, 100, "Pilot voltage changed from %d to %d. ADC: %d", currentPilotVoltage, newPilotVoltage, currentPilotControlAdc);
+        snprintf(buf, 100, "Pilot voltage changed from %d to %d. ADC: %lu", currentPilotVoltage, newPilotVoltage, currentPilotControlAdc);
         Log.log(buf);
         currentPilotVoltage = newPilotVoltage;
         changeDetected = true;
@@ -203,7 +203,7 @@ bool AdcManagerClass::updatePilotVoltageAndProximityPilotAmps()
     if (newProximityPilotAmps != currentProximityPilotAmps)
     {
         char buf[100];
-        snprintf(buf, 100, "Proximity voltage changed from %d to %d. ADC: %d", currentProximityPilotAmps, newProximityPilotAmps, currentProximityPilotAdc);
+        snprintf(buf, 100, "Proximity voltage changed from %d to %d. ADC: %lu", currentProximityPilotAmps, newProximityPilotAmps, currentProximityPilotAdc);
         Log.log(buf);
         currentProximityPilotAmps = newProximityPilotAmps;
         changeDetected = true;
