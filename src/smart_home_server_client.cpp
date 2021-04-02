@@ -98,8 +98,8 @@ void SmartHomeServerClientClass::tick(bool sendNotify)
 
         if (requestInitialBytesRead == 5)
         {
-            int msgLen = toInt(requestInitialBytes, 1);
 #ifdef DEBUG
+            int msgLen = toInt(requestInitialBytes, 1);
             char logBuf[100];
             snprintf(logBuf, 100, "Got: requestType=%d msgLen=%d", requestInitialBytes[0], msgLen);
             Log.log(logBuf);
@@ -284,7 +284,7 @@ void SmartHomeServerClientClass::handleCollectData()
 
     writeBool(Contactor.isOn(), sendingBuffer, 5);
     writeUint8(PwmD3.getCurrentPwmDutyCycle_percent(), sendingBuffer, 6);
-    writeUint8(AdcManager.currentPilotVoltage, sendingBuffer, 7);
+    writeUint8(AdcManager.currentControlPilotVoltage, sendingBuffer, 7);
     writeUint8(AdcManager.currentProximityPilotAmps, sendingBuffer, 8);
     writeUint32(SensorVoltage.phase1Millivolts(), sendingBuffer, 9);
     writeUint32(SensorVoltage.phase2Millivolts(), sendingBuffer, 13);
@@ -294,7 +294,7 @@ void SmartHomeServerClientClass::handleCollectData()
     writeUint32(SensorCurrent.phase3Milliamps(), sendingBuffer, 29);
     writeInt32(WiFi.RSSI(), sendingBuffer, 33);
     writeInt32(millis(), sendingBuffer, 37);
-    writeUint32(AdcManager.currentPilotControlAdc, sendingBuffer, 41);
+    writeUint32(AdcManager.currentControlPilotAdc, sendingBuffer, 41);
     writeUint32(AdcManager.currentProximityPilotAdc, sendingBuffer, 45);
     writeCharArray(Log.logBuffer, Log.bytesLogged, sendingBuffer, 49);
     Log.bytesLogged = 0; // clear local log buffer

@@ -181,46 +181,83 @@ struct ADCMeasurement AdcManagerClass::read(unsigned int numberOgSamples, int av
 
 bool AdcManagerClass::updatePilotVoltageAndProximityPilotAmps()
 {
+    ADCMeasurement adcMeasurement;
+
+    /*
+     * Experience has shown that EVs pilot signal might be unstable and switch back and forth
+     * within 100ms. Therefore, we buffer the signal for some time and only react upon changes
+     * after signal has been stable for this time (5000ms).
+     */
+    const unsigned long bufferTime = 5000;
+
+    // measure Pilot Control
     AdcManager.changeInputPin(pinControlPilot);
-    ADCMeasurement cpADCMeasurement = AdcManager.read(160, 1, 0); // 4 cycles
-    currentPilotControlAdc = cpADCMeasurement.highest;
-    PilotVoltage newPilotVoltage = AdcManager.toControlPilot(cpADCMeasurement);
+    adcMeasurement = read(160, 1, 0); // 4 cycles
+    const unsigned long newControlPilotAdc = adcMeasurement.highest;
+    // has it changed?
+    PilotVoltage lastControlPilotVoltage = toControlPilot(lastControlPilotAdc);
+    const PilotVoltage newControlPilotVoltage = toControlPilot(newControlPilotAdc);
+    if (lastControlPilotVoltage != newControlPilotVoltage)
+    {
+        lastControlPilotChangedAt = millis();
+        lastControlPilotAdc = newControlPilotAdc;
+        lastControlPilotVoltage = newControlPilotVoltage;
+    }
 
+    // measure Proximity Pilot
     AdcManager.changeInputPin(pinProxymityPilot);
-    ADCMeasurement ppADCMeasurement = AdcManager.read(160, 1, 0); // 4 cycles
-    currentProximityPilotAdc = ppADCMeasurement.highest;
-    ProximityPilotAmps newProximityPilotAmps = AdcManager.toProximityPilot(ppADCMeasurement);
+    adcMeasurement = read(160, 1, 0); // 4 cycles
+    const unsigned long newProximityPilotAdc = adcMeasurement.highest;
+    // has it changed?
+    ProximityPilotAmps lastProximityPilotAmps = toProximityPilot(lastProximityPilotAdc);
+    const ProximityPilotAmps newProximityPilotAmps = toProximityPilot(newProximityPilotAdc);
+    if (lastProximityPilotAmps != newProximityPilotAmps)
+    {
+        lastProximityPilotChangedAt = millis();
+        lastProximityPilotAdc = newProximityPilotAdc;
+        lastProximityPilotAmps = newProximityPilotAmps;
+    }
 
+    /*
+     * Evaluate change
+     */
     bool changeDetected = false;
-    if (newPilotVoltage != currentPilotVoltage)
+
+    const unsigned long durationPilotControl = millis() - lastControlPilotChangedAt;
+    if (lastControlPilotVoltage != currentControlPilotVoltage && (currentControlPilotVoltage != Volt_6 || durationPilotControl > bufferTime))
     {
         char buf[100];
-        snprintf(buf, 100, "Pilot voltage changed from %d to %d. ADC: %lu", currentPilotVoltage, newPilotVoltage, currentPilotControlAdc);
+        snprintf(buf, 100, "Pilot voltage changed from %d to %d. ADC: %lu", currentControlPilotVoltage, lastControlPilotVoltage, lastControlPilotAdc);
         Log.log(buf);
-        currentPilotVoltage = newPilotVoltage;
+
+        currentControlPilotVoltage = lastControlPilotVoltage;
+        currentControlPilotAdc = lastControlPilotAdc;
         changeDetected = true;
     }
-    if (newProximityPilotAmps != currentProximityPilotAmps)
+
+    const unsigned long durationProximityPilot = millis() - lastProximityPilotChangedAt;
+    if (lastProximityPilotAmps != currentProximityPilotAmps && durationProximityPilot > bufferTime)
     {
         char buf[100];
-        snprintf(buf, 100, "Proximity voltage changed from %d to %d. ADC: %lu", currentProximityPilotAmps, newProximityPilotAmps, currentProximityPilotAdc);
+        snprintf(buf, 100, "Proximity voltage changed from %d to %d. ADC: %lu", currentProximityPilotAmps, lastProximityPilotAmps, lastProximityPilotAdc);
         Log.log(buf);
-        currentProximityPilotAmps = newProximityPilotAmps;
+
+        currentProximityPilotAmps = lastProximityPilotAmps;
+        currentProximityPilotAdc = lastProximityPilotAdc;
         changeDetected = true;
     }
 
     return changeDetected;
 }
 
-unsigned long AdcManagerClass::adcValueToMilliVolts(ADCMeasurement aDCMeasurement)
+unsigned long AdcManagerClass::adcValueToMilliVolts(unsigned long aDCMeasurement)
 {
     // 0 => 0V | 4095 => 3.3V
-    uint32_t microVolts = aDCMeasurement.highest * 806;
+    uint32_t microVolts = aDCMeasurement * 806;
     return (uint16_t)(microVolts / 1000);
 }
 
-
-ProximityPilotAmps AdcManagerClass::toProximityPilot(ADCMeasurement aDCMeasurement)
+ProximityPilotAmps AdcManagerClass::toProximityPilot(unsigned long aDCMeasurement)
 {
     /*
      * 4095 / 330V = 12,409090909090909
@@ -244,7 +281,6 @@ ProximityPilotAmps AdcManagerClass::toProximityPilot(ADCMeasurement aDCMeasureme
     //Serial.println();
     //delay(1000);
 
-
     if (millivolts < 1129)
     {
         return Amp32;
@@ -263,7 +299,7 @@ ProximityPilotAmps AdcManagerClass::toProximityPilot(ADCMeasurement aDCMeasureme
     }
 }
 
-PilotVoltage AdcManagerClass::toControlPilot(ADCMeasurement aDCMeasurement)
+PilotVoltage AdcManagerClass::toControlPilot(unsigned long aDCMeasurement)
 {
     /*
      * R9 = 47k

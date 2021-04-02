@@ -30,10 +30,10 @@ public:
 
     bool updatePilotVoltageAndProximityPilotAmps();
 
-    PilotVoltage currentPilotVoltage = Volt_12;
-    ProximityPilotAmps currentProximityPilotAmps = Amp32;
-    unsigned long currentPilotControlAdc;
+    unsigned long currentControlPilotAdc;
+    PilotVoltage currentControlPilotVoltage = Volt_12;
     unsigned long currentProximityPilotAdc;
+    ProximityPilotAmps currentProximityPilotAmps = Amp32;
 
     void changeInputPin(unsigned int analogPinName);
     struct ADCMeasurement read(unsigned int numberOgSamples, int avg, int shift);
@@ -42,10 +42,15 @@ private:
     const unsigned long pinProxymityPilot = PIN_A0;
     const unsigned long pinControlPilot = PIN_A1;
 
-    unsigned long adcValueToMilliVolts(ADCMeasurement aDCMeasurement);
+    unsigned long lastControlPilotAdc;
+    unsigned long lastControlPilotChangedAt;
+    unsigned long lastProximityPilotAdc;
+    unsigned long lastProximityPilotChangedAt;
 
-    ProximityPilotAmps toProximityPilot(ADCMeasurement aDCMeasurement);
-    PilotVoltage toControlPilot(ADCMeasurement aDCMeasurement);
+    unsigned long adcValueToMilliVolts(unsigned long aDCMeasurement);
+
+    ProximityPilotAmps toProximityPilot(unsigned long aDCMeasurement);
+    PilotVoltage toControlPilot(unsigned long aDCMeasurement);
 };
 
 struct ADCMeasurement
