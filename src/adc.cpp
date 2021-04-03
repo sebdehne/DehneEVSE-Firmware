@@ -133,8 +133,13 @@ void AdcManagerClass::changeInputPin(unsigned int analogPinName)
 }
 
 // ***25us*** per sample
-// for 50Hz -> 800 sampels to catch 1 cycle
-// for 1kHz -> 40 sampels catches 1 cycle
+// for 50Hz -> 800 samples to catch 1 cycle
+// for 1kHz -> 40 samples catches 1 cycle
+//
+// 1kHz:
+//     30us /   3% duty cycle
+//    100us /  10% duty cycle
+//   1000us / 100% duty cycle
 struct ADCMeasurement AdcManagerClass::read(unsigned int numberOgSamples, int avg, int shift)
 {
 
@@ -186,13 +191,13 @@ bool AdcManagerClass::updatePilotVoltageAndProximityPilotAmps()
     /*
      * Experience has shown that EVs pilot signal might be unstable and switch back and forth
      * within 100ms. Therefore, we buffer the signal for some time and only react upon changes
-     * after signal has been stable for this time (5000ms).
+     * after signal has been stable for this time (500ms).
      */
-    const unsigned long bufferTime = 5000;
+    const unsigned long bufferTime = 500;
 
     // measure Pilot Control
     AdcManager.changeInputPin(pinControlPilot);
-    adcMeasurement = read(160, 1, 0); // 4 cycles
+    adcMeasurement = read(320, 1, 0); // 8 cycles
     const unsigned long newControlPilotAdc = adcMeasurement.highest;
     // has it changed?
     PilotVoltage lastControlPilotVoltage = toControlPilot(lastControlPilotAdc);
@@ -206,7 +211,7 @@ bool AdcManagerClass::updatePilotVoltageAndProximityPilotAmps()
 
     // measure Proximity Pilot
     AdcManager.changeInputPin(pinProxymityPilot);
-    adcMeasurement = read(160, 1, 0); // 4 cycles
+    adcMeasurement = read(320, 1, 0); // 8 cycles
     const unsigned long newProximityPilotAdc = adcMeasurement.highest;
     // has it changed?
     ProximityPilotAmps lastProximityPilotAmps = toProximityPilot(lastProximityPilotAdc);
