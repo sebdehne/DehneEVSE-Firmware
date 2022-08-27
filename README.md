@@ -2,7 +2,7 @@
 
 Arduino firmware (for [Arduino Nano 33 IoT](https://store.arduino.cc/arduino-nano-33-iot)) for my [DehneEVSE EV Charging Station](https://dehnes.com/electronics/2021/03/31/dehneevse_charging_station.html).
 
-This firmware has no charging logic at all. All it does is communicate with my [server](https://github.com/sebdehne/SmartHomeServer/tree/master/src/main/kotlin/com/dehnes/smarthome/ev_charging) via TCP/IP (no standard protocol, just raw bytes). It sends all it's data (like current state and power consumption) to the server in real-time. The server then evaulates what should be done and sends commands back, such as 1) enable/disable charging and at 2) which rate (ampere).
+This firmware has no charging logic at all. All it does is communicate with my [server](https://github.com/sebdehne/SmartHomeServer/tree/master/src/main/kotlin/com/dehnes/smarthome/ev_charging) via TCP/IP (no standard protocol, just raw bytes). It sends all it's data (like current state and power consumption) to the server in real-time. The server then evaulates what should be done and sends commands back, such as 1) enable/disable charging and 2) at which rate (ampere).
 
 Keeping all the charging logic remote allowes for much more flexable charging logic, such as for example:
 - only charge when your solar production is high (and keep charging at the rate which matches the solar-production)
